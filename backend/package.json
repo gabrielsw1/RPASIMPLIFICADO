@@ -1,0 +1,22 @@
+{
+  "name": "rpa-simplificado-backend",
+  "version": "1.0.0",
+  "description": "Backend API para plataforma de cursos RPA Simplificado",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "fastify": "^4",
+    "@fastify/cors": "^9",
+    "@fastify/multipart": "^8",
+    "@supabase/supabase-js": "^2",
+    "stripe": "^14",
+    "dotenv": "^16"
+  },
+  "devDependencies": {
+    "nodemon": "^3"
+  }
+}
