@@ -1,6 +1,7 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
+import log from './utils/logger.js'
 
 // Auth
 import authRoutes from './routes/auth.js'
@@ -26,7 +27,28 @@ import adminCommentsRoutes from './routes/admin/comments.js'
 import adminBadgesRoutes from './routes/admin/badges.js'
 import adminSettingsRoutes from './routes/admin/settings.js'
 
-const fastify = Fastify({ logger: true })
+const fastify = Fastify({ logger: false })
+
+// Log de todas as requisições
+fastify.addHook('onRequest', (request, reply, done) => {
+  request._startTime = Date.now()
+  done()
+})
+
+fastify.addHook('onResponse', (request, reply, done) => {
+  const duration = Date.now() - (request._startTime || Date.now())
+  log.request(request.method, request.url, reply.statusCode)
+  if (reply.statusCode >= 400) {
+    log.warn('HTTP', `${request.method} ${request.url} — ${duration}ms`)
+  }
+  done()
+})
+
+// Log de erros não tratados
+fastify.setErrorHandler((error, request, reply) => {
+  log.error('Server', `${request.method} ${request.url}`, error.message)
+  reply.code(error.statusCode || 500).send({ error: error.message })
+})
 
 // CORS
 const allowedOrigins = [
@@ -36,15 +58,18 @@ const allowedOrigins = [
   ...(process.env.FRONTEND_URL ? [`https://www.${process.env.FRONTEND_URL.replace('https://', '')}`] : []),
 ]
 
+log.info('CORS', 'Origens permitidas:', allowedOrigins)
+
 await fastify.register(cors, {
   origin: (origin, cb) => {
     if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
+    log.warn('CORS', `Origem bloqueada: ${origin}`)
     cb(new Error('Not allowed by CORS'))
   },
   credentials: true,
 })
 
-// Multipart (upload de arquivos — limite 500MB para vídeos)
+// Multipart
 await fastify.register(multipart, {
   limits: { fileSize: 500 * 1024 * 1024 },
 })
@@ -62,7 +87,7 @@ fastify.register(helpRequestsRoutes, { prefix: '/api' })
 fastify.register(settingsRoutes, { prefix: '/api' })
 fastify.register(uploadRoutes, { prefix: '/api' })
 
-// Webhook Stripe (body raw — registrado antes do JSON parser global)
+// Webhook Stripe
 fastify.register(webhooksRoutes, { prefix: '/api' })
 
 // Rotas admin
@@ -76,12 +101,22 @@ fastify.register(adminBadgesRoutes, { prefix: '/api/admin' })
 fastify.register(adminSettingsRoutes, { prefix: '/api/admin' })
 
 // Health check
-fastify.get('/health', () => ({ status: 'ok', timestamp: new Date().toISOString() }))
+fastify.get('/health', () => {
+  log.info('Health', 'ping')
+  return { status: 'ok', timestamp: new Date().toISOString() }
+})
 
 // Start
 try {
-  await fastify.listen({ port: Number(process.env.PORT) || 3001, host: '0.0.0.0' })
+  const port = Number(process.env.PORT) || 3001
+  await fastify.listen({ port, host: '0.0.0.0' })
+  log.success('Server', `Rodando em http://0.0.0.0:${port}`)
+  log.info('Env', `SUPABASE_URL: ${process.env.SUPABASE_URL ? '✓ definida' : '✗ FALTANDO'}`)
+  log.info('Env', `SUPABASE_ANON_KEY: ${process.env.SUPABASE_ANON_KEY ? '✓ definida' : '✗ FALTANDO'}`)
+  log.info('Env', `SUPABASE_SERVICE_ROLE_KEY: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? '✓ definida' : '✗ FALTANDO'}`)
+  log.info('Env', `STRIPE_SECRET_KEY: ${process.env.STRIPE_SECRET_KEY ? '✓ definida' : '✗ FALTANDO'}`)
+  log.info('Env', `FRONTEND_URL: ${process.env.FRONTEND_URL || '✗ FALTANDO'}`)
 } catch (err) {
-  fastify.log.error(err)
+  log.error('Server', 'Falha ao iniciar', err.message)
   process.exit(1)
 }
