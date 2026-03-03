@@ -85,9 +85,10 @@ export function setupRouterGuards(router) {
       await settingsStore.init()
     }
 
-    // Admin: redireciona para /admin/login se não autenticado
+    // Admin: exige usuário autenticado E com role=admin
     if (to.meta.requiresAuth) {
       if (!authStore.user) return '/admin/login'
+      if (!authStore.isAdmin) return '/admin/login'
     }
 
     // Área do aluno: redireciona para /entrar se não autenticado

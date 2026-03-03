@@ -109,8 +109,13 @@ async function handleLogin() {
   errorMsg.value = ''
   loading.value = true
   try {
-    await authStore.login(email.value, password.value)
-    router.push('/admin/posts')
+    const data = await authStore.login(email.value, password.value)
+    if (data.role !== 'admin') {
+      errorMsg.value = 'Acesso restrito a administradores.'
+      await authStore.logout()
+      return
+    }
+    router.push('/admin/dashboard')
   } catch {
     errorMsg.value = 'Credenciais inválidas. Verifique o e-mail e senha.'
   } finally {

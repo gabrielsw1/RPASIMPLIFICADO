@@ -1,4 +1,14 @@
 import log from '../utils/logger.js'
+import supabase from '../services/supabase.js'
+
+async function getRole(userId) {
+  const { data } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+  return data?.role || 'student'
+}
 
 export default async function authRoutes(fastify) {
   // POST /api/auth/login
@@ -32,16 +42,18 @@ export default async function authRoutes(fastify) {
         error: data.error,
         error_description: data.error_description,
         msg: data.msg,
-        raw: data,
       })
       return reply.code(401).send({ error: data.error_description || data.msg || 'Credenciais inválidas' })
     }
 
-    log.success('Auth', `Login OK: ${email}`)
+    const role = await getRole(data.user.id)
+    log.success('Auth', `Login OK: ${email} [${role}]`)
+
     return {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
       user: data.user,
+      role,
     }
   })
 
@@ -85,7 +97,9 @@ export default async function authRoutes(fastify) {
     }
 
     const user = await res.json()
-    log.info('Auth', `/me OK: ${user.email}`)
-    return { user }
+    const role = await getRole(user.id)
+
+    log.info('Auth', `/me OK: ${user.email} [${role}]`)
+    return { user, role }
   })
 }
