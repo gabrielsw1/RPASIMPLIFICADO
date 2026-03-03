@@ -26,8 +26,18 @@ import adminSettingsRoutes from './routes/admin/settings.js'
 const fastify = Fastify({ logger: true })
 
 // CORS
+const allowedOrigins = [
+  'http://localhost:9000',
+  'http://localhost:9001',
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+  ...(process.env.FRONTEND_URL ? [`https://www.${process.env.FRONTEND_URL.replace('https://', '')}`] : []),
+]
+
 await fastify.register(cors, {
-  origin: process.env.FRONTEND_URL || 'http://localhost:9000',
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
+    cb(new Error('Not allowed by CORS'))
+  },
   credentials: true,
 })
 
