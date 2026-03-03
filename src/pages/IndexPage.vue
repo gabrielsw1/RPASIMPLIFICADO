@@ -41,7 +41,7 @@
     <section id="profile" class="section-container row items-center q-col-gutter-xl q-pa-xl q-my-xl">
       <div class="col-12 col-md-5 text-center">
         <q-avatar size="250px" class="profile-avatar shadow-10 q-mb-md bg-white">
-          <img src="~assets/fotoPerfil.png" alt="Gabriel Moreno" class="avatar-gradient" style="object-fit: cover;" />
+          <img src="~assets/FotoPerfil.png" alt="Gabriel Moreno" class="avatar-gradient" style="object-fit: cover;" />
         </q-avatar>
         <div class="text-h4 text-weight-bold text-primary">Gabriel Moreno da Luz</div>
         <div class="text-subtitle1 text-accent q-mt-sm text-weight-bold">UiPath Community MVP</div>
