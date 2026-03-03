@@ -2,6 +2,9 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
 
+// Auth
+import authRoutes from './routes/auth.js'
+
 // Rotas públicas
 import coursesRoutes from './routes/courses.js'
 import postsRoutes from './routes/posts.js'
@@ -45,6 +48,9 @@ await fastify.register(cors, {
 await fastify.register(multipart, {
   limits: { fileSize: 500 * 1024 * 1024 },
 })
+
+// Auth
+fastify.register(authRoutes, { prefix: '/api' })
 
 // Rotas públicas
 fastify.register(coursesRoutes, { prefix: '/api' })

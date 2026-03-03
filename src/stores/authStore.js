@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { supabase } from 'boot/supabase'
+import axios from 'axios'
+
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+const TOKEN_KEY = 'auth_token'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -9,52 +12,54 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function init() {
     loading.value = true
-
-    // Register BEFORE getSession so we don't miss the SIGNED_IN event
-    // that fires when Supabase processes the OAuth redirect hash/code
-    supabase.auth.onAuthStateChange((event, session) => {
-      user.value = session?.user ?? null
-
-      if (event === 'SIGNED_IN') {
-        const returnPath = localStorage.getItem('oauth_return')
-        if (returnPath) {
-          localStorage.removeItem('oauth_return')
-          pendingReturn.value = returnPath
-        }
+    try {
+      const token = localStorage.getItem(TOKEN_KEY)
+      if (token) {
+        const { data } = await axios.get(`${API}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        user.value = data.user
       }
-    })
-
-    const { data } = await supabase.auth.getSession()
-    user.value = data.session?.user ?? null
-    loading.value = false
-
-    // Catch-all: if the session was already present when init ran
-    // (e.g. the listener fired before being registered), check localStorage now
-    if (data.session) {
-      const returnPath = localStorage.getItem('oauth_return')
-      if (returnPath) {
-        localStorage.removeItem('oauth_return')
-        pendingReturn.value = returnPath
-      }
+    } catch {
+      localStorage.removeItem(TOKEN_KEY)
+      user.value = null
+    } finally {
+      loading.value = false
     }
   }
 
+  async function login(email, password) {
+    const { data } = await axios.post(`${API}/api/auth/login`, { email, password })
+    localStorage.setItem(TOKEN_KEY, data.access_token)
+    user.value = data.user
+    return data
+  }
+
+  async function logout() {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (token) {
+      try {
+        await axios.post(`${API}/api/auth/logout`, {}, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      } catch { /* silencioso */ }
+    }
+    localStorage.removeItem(TOKEN_KEY)
+    user.value = null
+  }
+
+  // OAuth (LinkedIn) — mantém via Supabase client no browser
   async function loginWithLinkedIn(returnPath) {
     if (returnPath) localStorage.setItem('oauth_return', returnPath)
+    const { supabase } = await import('boot/supabase')
     await supabase.auth.signInWithOAuth({
       provider: 'linkedin_oidc',
       options: { redirectTo: `${window.location.origin}/` },
     })
   }
 
-  async function login(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw error
-    user.value = data.user
-    return data
-  }
-
   async function signup(email, password, fullName) {
+    const { supabase } = await import('boot/supabase')
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -64,10 +69,5 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  async function logout() {
-    await supabase.auth.signOut()
-    user.value = null
-  }
-
-  return { user, loading, pendingReturn, init, login, signup, logout, loginWithLinkedIn }
+  return { user, loading, pendingReturn, init, login, logout, loginWithLinkedIn, signup }
 })
