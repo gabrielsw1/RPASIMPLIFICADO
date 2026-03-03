@@ -76,6 +76,13 @@ export default async function authRoutes(fastify) {
     return { success: true }
   })
 
+  // GET /api/auth/linkedin/url — gera URL OAuth sem expor Supabase ao frontend
+  fastify.get('/auth/linkedin/url', async (request, reply) => {
+    const redirectTo = process.env.FRONTEND_URL || 'http://localhost:9000'
+    const url = `${process.env.SUPABASE_URL}/auth/v1/authorize?provider=linkedin_oidc&redirect_to=${encodeURIComponent(redirectTo + '/')}`
+    return { url }
+  })
+
   // GET /api/auth/me
   fastify.get('/auth/me', async (request, reply) => {
     const token = request.headers.authorization?.replace('Bearer ', '')

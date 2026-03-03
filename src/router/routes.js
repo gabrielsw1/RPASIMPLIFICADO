@@ -74,6 +74,19 @@ export default routes
 
 export function setupRouterGuards(router) {
   router.beforeEach(async (to) => {
+    // Intercepta callback OAuth do LinkedIn (token vem no hash da URL)
+    // Deve ser a primeira coisa a rodar antes de qualquer await
+    const hash = window.location.hash
+    if (hash && hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash.slice(1))
+      const token = params.get('access_token')
+      if (token) {
+        localStorage.setItem('auth_token', token)
+        window.history.replaceState(null, '', window.location.pathname)
+        return '/'
+      }
+    }
+
     const authStore = useAuthStore()
     const settingsStore = useSettingsStore()
 

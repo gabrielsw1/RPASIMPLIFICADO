@@ -17,18 +17,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function init() {
     loading.value = true
     try {
-      let token = localStorage.getItem(TOKEN_KEY)
-
-      // Após LinkedIn OAuth, o Supabase tem sessão mas ainda não temos auth_token
-      if (!token) {
-        const { supabase } = await import('boot/supabase')
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.access_token) {
-          token = session.access_token
-          localStorage.setItem(TOKEN_KEY, token)
-        }
-      }
-
+      const token = localStorage.getItem(TOKEN_KEY)
       if (token) {
         const { data } = await axios.get(`${API}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -74,14 +63,11 @@ export const useAuthStore = defineStore('auth', () => {
     role.value = null
   }
 
-  // OAuth (LinkedIn) — mantém via Supabase client no browser
+  // OAuth LinkedIn — URL gerada pelo backend, sem depender de VITE_SUPABASE_URL
   async function loginWithLinkedIn(returnPath) {
     if (returnPath) localStorage.setItem('oauth_return', returnPath)
-    const { supabase } = await import('boot/supabase')
-    await supabase.auth.signInWithOAuth({
-      provider: 'linkedin_oidc',
-      options: { redirectTo: `${window.location.origin}/` },
-    })
+    const { data } = await axios.get(`${API}/api/auth/linkedin/url`)
+    window.location.href = data.url
   }
 
   async function signup(email, password, fullName) {
