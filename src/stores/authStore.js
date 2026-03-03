@@ -17,16 +17,33 @@ export const useAuthStore = defineStore('auth', () => {
   async function init() {
     loading.value = true
     try {
-      const token = localStorage.getItem(TOKEN_KEY)
+      let token = localStorage.getItem(TOKEN_KEY)
+
+      // Após LinkedIn OAuth, o Supabase tem sessão mas ainda não temos auth_token
+      if (!token) {
+        const { supabase } = await import('boot/supabase')
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token) {
+          token = session.access_token
+          localStorage.setItem(TOKEN_KEY, token)
+        }
+      }
+
       if (token) {
         const { data } = await axios.get(`${API}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         user.value = data.user
         role.value = data.role
+
+        // Redirecionar para a página que o usuário estava antes do OAuth
+        const returnPath = localStorage.getItem('oauth_return')
+        if (returnPath) {
+          localStorage.removeItem('oauth_return')
+          pendingReturn.value = returnPath
+        }
       }
     } catch {
-      // Token expirado ou inválido — limpa tudo
       localStorage.removeItem(TOKEN_KEY)
       user.value = null
       role.value = null
