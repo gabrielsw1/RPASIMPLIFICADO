@@ -102,6 +102,17 @@
           </q-card>
         </div>
       </div>
+
+      <!-- Export Section -->
+      <div class="row justify-center q-mt-xl">
+        <q-card flat bordered class="export-card">
+          <q-card-section class="row items-center justify-center q-gutter-sm q-py-md">
+            <div class="col-12 text-center text-caption text-grey-6 text-weight-bold text-uppercase q-mb-xs">Exportar Resultado</div>
+            <q-btn outline icon="picture_as_pdf" label="Exportar PDF" color="negative" :loading="exportingPDF" @click="exportToPDF" class="export-btn" />
+            <q-btn outline icon="table_chart" label="Exportar Excel" color="positive" :loading="exportingExcel" @click="exportToExcel" class="export-btn" />
+          </q-card-section>
+        </q-card>
+      </div>
     </div>
   </q-page>
 </template>
@@ -109,6 +120,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useMeta } from 'quasar'
+import { useToolExport } from 'src/composables/useToolExport'
 
 useMeta({
   title: 'Estimador de Esforço RPA (T-Shirt Sizing) | RPA Simplificado',
@@ -154,6 +166,30 @@ const finalSize = computed(() => tShirtCalc.value.size)
 const effortCategory = computed(() => tShirtCalc.value.name)
 const durationString = computed(() => tShirtCalc.value.weeks)
 const sizeClass = computed(() => tShirtCalc.value.cls)
+
+function getExportData () {
+  return {
+    toolName: 'Estimador de Esforço RPA (T-Shirt Sizing)',
+    subtitle: 'Estimativa de complexidade e tempo de desenvolvimento de automação por sprint sizing.',
+    params: [
+      { label: 'Telas / Sistemas Navegados', value: screens.value },
+      { label: 'Variações Lógicas (Ifs)', value: businessRules.value },
+      { label: 'Citrix / Máquina Remota / Mainframe', value: hasCitrix.value ? 'Sim' : 'Não' },
+      { label: 'Extração de Texto Complexo (OCR / IA)', value: hasOcr.value ? 'Sim' : 'Não' },
+      { label: 'Interação com Banco de Dados / APIs', value: hasApi.value ? 'Sim' : 'Não' },
+      { label: 'Agentic Automation (Agentes / LLMs)', value: hasAgentic.value ? 'Sim' : 'Não' },
+      { label: 'Score de Complexidade (pontos)', value: score.value }
+    ],
+    results: [
+      { label: 'Classificação T-Shirt', value: finalSize.value },
+      { label: 'Categoria de Esforço', value: effortCategory.value },
+      { label: 'Desenvolvimento Estimado', value: durationString.value },
+      { label: 'Observação', value: 'Estimativa focada no tempo de código ágil (PDD à Homologação do Dev RPA Pleno) por automação individual.' }
+    ]
+  }
+}
+
+const { exportToPDF, exportToExcel, exportingPDF, exportingExcel } = useToolExport(getExportData)
 
 </script>
 
@@ -210,5 +246,13 @@ const sizeClass = computed(() => tShirtCalc.value.cls)
 }
 .border-accent {
   border-left: 5px solid #ff6500;
+}
+.export-card {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 12px;
+}
+.export-btn {
+  min-width: 160px;
 }
 </style>

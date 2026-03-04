@@ -94,6 +94,17 @@
           </q-card>
         </div>
       </div>
+
+      <!-- Export Section -->
+      <div class="row justify-center q-mt-xl">
+        <q-card flat bordered class="export-card">
+          <q-card-section class="row items-center justify-center q-gutter-sm q-py-md">
+            <div class="col-12 text-center text-caption text-grey-6 text-weight-bold text-uppercase q-mb-xs">Exportar Resultado</div>
+            <q-btn outline icon="picture_as_pdf" label="Exportar PDF" color="negative" :loading="exportingPDF" @click="exportToPDF" class="export-btn" />
+            <q-btn outline icon="table_chart" label="Exportar Excel" color="positive" :loading="exportingExcel" @click="exportToExcel" class="export-btn" />
+          </q-card-section>
+        </q-card>
+      </div>
     </div>
   </q-page>
 </template>
@@ -101,6 +112,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useMeta } from 'quasar'
+import { useToolExport } from 'src/composables/useToolExport'
 
 useMeta({
   title: 'Matriz de Viabilidade RPA | RPA Simplificado',
@@ -155,6 +167,27 @@ const viabilidadeTitulo = computed(() => {
   return 'Inviável para RPA Clássico'
 })
 
+function getExportData () {
+  return {
+    toolName: 'Matriz de Viabilidade (Assessment) RPA',
+    subtitle: 'Avaliação do potencial de automação do processo com base em critérios técnicos.',
+    params: [
+      { label: 'Considerar Agentic Automation (IA)', value: useAi.value ? 'Sim' : 'Não' },
+      { label: '1. Baseado em Regras Claras', value: `${ruleBased.value} / 10` },
+      { label: '2. Dados de Entrada Digitais/Estruturados', value: `${digitalInput.value} / 10` },
+      { label: '3. Estabilidade dos Sistemas', value: `${stability.value} / 10` },
+      { label: '4. Volume de Repetição', value: `${frequency.value} / 10` }
+    ],
+    results: [
+      { label: 'Score de Viabilidade', value: `${scorePercentage.value}%` },
+      { label: 'Classificação', value: viabilidadeTitulo.value },
+      { label: 'Análise e Recomendação', value: viabilidadeTexto.value }
+    ]
+  }
+}
+
+const { exportToPDF, exportToExcel, exportingPDF, exportingExcel } = useToolExport(getExportData)
+
 const viabilidadeTexto = computed(() => {
   if (useAi.value) {
      if (scorePercentage.value >= 80) return 'Com Agentes de IA, este processo não só é automatizável como terá alta resiliência a mudanças, tomando decisões cognitivas que o RPA tradicional não conseguiria.'
@@ -189,5 +222,13 @@ const viabilidadeTexto = computed(() => {
 }
 .flex-grow-1 {
   flex-grow: 1;
+}
+.export-card {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 12px;
+}
+.export-btn {
+  min-width: 160px;
 }
 </style>

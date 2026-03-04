@@ -144,10 +144,37 @@
               <div class="text-caption text-grey">A Linha Laranja inicia com seu valor inicial de investimento total (Capex).<br/> O ponto exato em que a Linha Laranja (RPA) cruza abaixo da Azul (Manual) é onde a Automação se pagou totalmente e começa a gerar o <b>Lucro Definitivo</b>.</div>
             </q-card-section>
             <q-card-section>
-              <apexchart type="line" height="320" :options="chartOptions" :series="chartSeries"></apexchart>
+              <apexchart ref="chartRef" type="line" height="320" :options="chartOptions" :series="chartSeries"></apexchart>
             </q-card-section>
           </q-card>
         </div>
+      </div>
+
+      <!-- Export Section -->
+      <div class="row justify-center q-mt-xl">
+        <q-card flat bordered class="export-card">
+          <q-card-section class="row items-center justify-center q-gutter-sm q-py-md">
+            <div class="col-12 text-center text-caption text-grey-6 text-weight-bold text-uppercase q-mb-xs">Exportar Resultado</div>
+            <q-btn
+              outline
+              icon="picture_as_pdf"
+              label="Exportar PDF"
+              color="negative"
+              :loading="exportingPDF"
+              @click="exportToPDF"
+              class="export-btn"
+            />
+            <q-btn
+              outline
+              icon="table_chart"
+              label="Exportar Excel"
+              color="positive"
+              :loading="exportingExcel"
+              @click="exportToExcel"
+              class="export-btn"
+            />
+          </q-card-section>
+        </q-card>
       </div>
     </div>
   </q-page>
@@ -157,6 +184,7 @@
 import { computed, ref } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'
 import { useMeta } from 'quasar'
+import { useToolExport } from 'src/composables/useToolExport'
 
 useMeta({
   title: 'Calculadora de ROI para RPA | RPA Simplificado',
@@ -169,6 +197,7 @@ useMeta({
 })
 
 const apexchart = VueApexCharts
+const chartRef = ref(null)
 
 const volumeM = ref(3000)
 const tmaMinutos = ref(15)
@@ -260,6 +289,46 @@ function formatCurrency (value) {
     currency: 'BRL'
   }).format(value || 0)
 }
+
+function getExportData () {
+  const chartRawData = []
+  for (let i = 0; i <= 24; i++) {
+    chartRawData.push({
+      mes: `Mês ${i}`,
+      manual: custoManualMes.value * i,
+      manualFmt: formatCurrency(custoManualMes.value * i),
+      rpa: custoImplementacao.value + custoRpaMes.value * i,
+      rpaFmt: formatCurrency(custoImplementacao.value + custoRpaMes.value * i)
+    })
+  }
+  return {
+    toolName: 'Calculadora de ROI para RPA',
+    subtitle: 'Descubra os Custos Mensais e Anuais, e o tempo de Payback da sua automação.',
+    params: [
+      { label: 'Volume Mensal de Transações', value: `${volumeM.value.toLocaleString('pt-BR')} transações` },
+      { label: 'TMA por Transação', value: `${tmaMinutos.value} minutos` },
+      { label: 'Pessoas Envolvidas', value: `${qtdPessoas.value} pessoas` },
+      { label: 'Custo Hora/Homem', value: formatCurrency(custoHora.value) },
+      { label: 'Custo com Erros/Atrasos Mensal', value: formatCurrency(custoErrosMes.value) },
+      { label: 'Investimento de Implantação (Capex)', value: formatCurrency(custoImplementacao.value) },
+      { label: 'Licenciamento Anual', value: formatCurrency(custoLicencaAnual.value) },
+      { label: 'Manutenção / Nuvem Mensal', value: formatCurrency(custoManutencaoMensal.value) },
+      { label: 'Custo IA / Tokens LLM Mensal', value: formatCurrency(custoLLMMensal.value) }
+    ],
+    results: [
+      { label: 'Horas Manuais por Mês', value: `${horasManuaisMes.value.toFixed(0)} horas (entre ${qtdPessoas.value} pessoas)` },
+      { label: 'Custo Manual Mensal', value: formatCurrency(custoManualMes.value) },
+      { label: 'Custo Manual Anual', value: formatCurrency(custoManualAno.value) },
+      { label: 'Custo RPA Mensal (OPEX recorrente)', value: formatCurrency(custoRpaMes.value) },
+      { label: 'Custo RPA Total Ano 1', value: formatCurrency(custoRpaAno1.value) },
+      { label: 'Tempo Estimado de Payback', value: paybackMeses.value > 0 ? `${paybackMeses.value.toFixed(1)} meses` : 'Não se paga com os parâmetros atuais' },
+      { label: 'Economia Anual (Ano 1)', value: formatCurrency(economiaAno1.value) }
+    ],
+    chartData: chartRawData
+  }
+}
+
+const { exportToPDF, exportToExcel, exportingPDF, exportingExcel } = useToolExport(getExportData, chartRef)
 </script>
 
 <style scoped>
@@ -284,6 +353,14 @@ function formatCurrency (value) {
 }
 .flex-grow-1 {
   flex-grow: 1;
+}
+.export-card {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 12px;
+}
+.export-btn {
+  min-width: 160px;
 }
 @media (max-width: 599px) {
   .border-right {

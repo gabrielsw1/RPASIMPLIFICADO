@@ -124,6 +124,17 @@
           </q-card>
         </div>
       </div>
+
+      <!-- Export Section -->
+      <div class="row justify-center q-mt-xl">
+        <q-card flat bordered class="export-card">
+          <q-card-section class="row items-center justify-center q-gutter-sm q-py-md">
+            <div class="col-12 text-center text-caption text-grey-6 text-weight-bold text-uppercase q-mb-xs">Exportar Resultado</div>
+            <q-btn outline icon="picture_as_pdf" label="Exportar PDF" color="negative" :loading="exportingPDF" @click="exportToPDF" class="export-btn" />
+            <q-btn outline icon="table_chart" label="Exportar Excel" color="positive" :loading="exportingExcel" @click="exportToExcel" class="export-btn" />
+          </q-card-section>
+        </q-card>
+      </div>
     </div>
   </q-page>
 </template>
@@ -131,6 +142,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useMeta } from 'quasar'
+import { useToolExport } from 'src/composables/useToolExport'
 
 useMeta({
   title: 'Calculadora de Impacto ESG em Automação | RPA Simplificado',
@@ -169,6 +181,33 @@ const co2SavedStr = computed(() => new Intl.NumberFormat('pt-BR', { maximumFract
 const hoursSavedStr = computed(() => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(hoursSaved.value))
 const volumeAnoStr = computed(() => new Intl.NumberFormat('pt-BR').format(volumeAno.value))
 
+function getExportData () {
+  const results = [
+    { label: 'Folhas de Papel por Ano (evitadas)', value: `${new Intl.NumberFormat('pt-BR').format(folhasPorAno.value)} folhas` },
+    { label: 'Árvores Salvas', value: `${treesSaved.value} árvores` },
+    { label: 'Água Preservada', value: `${waterSavedStr.value} litros` },
+    { label: 'Horas de PC Otimizadas', value: `${hoursSavedStr.value} horas` },
+    { label: 'Carbono Prevenido', value: `${co2SavedStr.value} kg de CO₂` }
+  ]
+  if (useAgentic.value) {
+    results.push({ label: 'Decisões Cognitivas Poupadas (Agentic)', value: `${volumeAnoStr.value} decisões` })
+  }
+  return {
+    toolName: 'Calculadora de Impacto ESG em Automação',
+    subtitle: 'Impacto ambiental e social gerado pela automação de processos (Green IT + Burnout reduzido).',
+    params: [
+      { label: 'Transações Anuais', value: new Intl.NumberFormat('pt-BR').format(volumeAno.value) },
+      { label: 'Folhas Impressas por Transação', value: folhasPorTrans.value },
+      { label: 'TMA em Minutos (Humano)', value: `${tmaMinutos.value} minutos` },
+      { label: 'KM de Transporte por Mês', value: `${coletaLixo.value} km` },
+      { label: 'Automação Agêntica (IA)', value: useAgentic.value ? 'Sim' : 'Não' }
+    ],
+    results
+  }
+}
+
+const { exportToPDF, exportToExcel, exportingPDF, exportingExcel } = useToolExport(getExportData)
+
 </script>
 
 <style scoped>
@@ -199,5 +238,13 @@ const volumeAnoStr = computed(() => new Intl.NumberFormat('pt-BR').format(volume
 }
 .border-left-purple {
   border-left: 2px solid #ce93d8;
+}
+.export-card {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 12px;
+}
+.export-btn {
+  min-width: 160px;
 }
 </style>
