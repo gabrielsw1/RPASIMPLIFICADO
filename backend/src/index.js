@@ -27,7 +27,10 @@ import adminCommentsRoutes from './routes/admin/comments.js'
 import adminBadgesRoutes from './routes/admin/badges.js'
 import adminSettingsRoutes from './routes/admin/settings.js'
 
-const fastify = Fastify({ logger: false })
+const fastify = Fastify({
+  logger: false,
+  bodyLimit: 50 * 1024 * 1024,
+})
 
 // Log de todas as requisições
 fastify.addHook('onRequest', (request, reply, done) => {
