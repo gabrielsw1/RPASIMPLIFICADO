@@ -18,9 +18,64 @@
             </q-card-section>
             
             <q-card-section class="q-gutter-md">
+              <!-- Calculadora Auxiliar -->
+              <q-expansion-item
+                v-model="showAuxiliar"
+                icon="auto_fix_high"
+                label="Calculadora Auxiliar"
+                caption="Preencha para auto-calcular Volume e Custo Hora"
+                header-class="text-accent text-weight-bold bg-orange-1 rounded-borders"
+                class="q-mb-md"
+              >
+                <div class="q-pa-md bg-grey-1 rounded-borders">
+                  <div class="text-caption text-weight-bold text-grey-8 q-mb-sm">Volume de Transações</div>
+                  <div class="row q-col-gutter-md q-mb-md">
+                    <div class="col-6">
+                      <q-input outlined v-model.number="execucoesDia" type="number" label="Execuções / Dia">
+                        <template v-slot:prepend><q-icon name="today" size="xs" /></template>
+                      </q-input>
+                    </div>
+                    <div class="col-6">
+                      <q-input outlined v-model.number="diasUteis" type="number" label="Dias Úteis / Mês">
+                        <template v-slot:prepend><q-icon name="date_range" size="xs" /></template>
+                      </q-input>
+                    </div>
+                  </div>
+
+                  <div class="text-caption text-weight-bold text-grey-8 q-mb-sm">Custo do Colaborador</div>
+                  <div class="row q-col-gutter-md q-mb-sm">
+                    <div class="col-6">
+                      <q-input outlined v-model.number="salarioMedio" type="number" label="Salário Médio (R$)" prefix="R$">
+                        <template v-slot:prepend><q-icon name="payments" size="xs" /></template>
+                      </q-input>
+                    </div>
+                    <div class="col-6">
+                      <q-input outlined v-model.number="jornadaDiaria" type="number" label="Jornada (h/dia)">
+                        <template v-slot:prepend><q-icon name="schedule" size="xs" /></template>
+                      </q-input>
+                    </div>
+                  </div>
+
+                  <!-- Resumo calculado -->
+                  <div v-if="execucoesDia && execucoesDia > 0 || salarioMedio && salarioMedio > 0 || horasTimeMes > 0" class="q-mt-md q-pa-sm bg-white rounded-borders">
+                    <div class="text-caption text-weight-bold text-primary q-mb-xs">Resultado Auxiliar</div>
+                    <div v-if="execucoesDia && execucoesDia > 0" class="text-caption text-grey-8 q-mb-xs">
+                      Volume mensal: {{ execucoesDia }} × {{ diasUteis }} = <strong class="text-primary">{{ (execucoesDia * diasUteis).toLocaleString('pt-BR') }} transações/mês</strong>
+                    </div>
+                    <div v-if="salarioMedio && salarioMedio > 0" class="text-caption text-grey-8 q-mb-xs">
+                      Custo hora: {{ formatCurrency(salarioMedio) }} ÷ ({{ jornadaDiaria }}h × {{ diasUteis }}d) = <strong class="text-primary">{{ formatCurrency(salarioMedio / (jornadaDiaria * diasUteis)) }}/h</strong>
+                    </div>
+                    <div v-if="horasTimeMes > 0" class="text-caption text-grey-8">
+                      Tempo do time: <strong class="text-primary">{{ horasTimeMes.toFixed(1) }}h/mês</strong>
+                      <span v-if="qtdPessoas > 0"> (~{{ horasPorPessoaDia.toFixed(1) }}h/dia por pessoa)</span>
+                    </div>
+                  </div>
+                </div>
+              </q-expansion-item>
+
               <div class="text-subtitle1 text-weight-bold text-primary q-mt-sm">Custos do Processo Manual</div>
-              
-              <q-input outlined v-model.number="volumeM" type="number" label="Volume Mensal de Transações" :rules="[val => val >= 0 || 'Obrigatório']">
+
+              <q-input outlined v-model.number="volumeM" type="number" label="Volume Mensal de Transações" :rules="[val => val >= 0 || 'Obrigatório']" :hint="execucoesDia && execucoesDia > 0 ? 'Auto-calculado pela calculadora auxiliar' : ''">
                 <template v-slot:prepend><q-icon name="repeat" /></template>
                 <template v-slot:append>
                   <q-icon name="info" class="cursor-pointer text-grey"><q-tooltip class="text-body2">Quantas vezes essa tarefa/processo é realizada em um mês.</q-tooltip></q-icon>
@@ -41,7 +96,7 @@
                 </template>
               </q-input>
 
-              <q-input outlined v-model.number="custoHora" type="number" label="Custo Hora/Homem (R$)" prefix="R$" :rules="[val => val >= 0 || 'Obrigatório']">
+              <q-input outlined v-model.number="custoHora" type="number" label="Custo Hora/Homem (R$)" prefix="R$" :rules="[val => val >= 0 || 'Obrigatório']" :hint="salarioMedio && salarioMedio > 0 ? 'Auto-calculado pela calculadora auxiliar' : ''">
                 <template v-slot:prepend><q-icon name="monetization_on" /></template>
                 <template v-slot:append>
                   <q-icon name="info" class="cursor-pointer text-grey"><q-tooltip class="text-body2">Valor médio da hora do colaborador. Inclua o custo total como CLT/PJ e benefícios para melhor precisão.</q-tooltip></q-icon>
@@ -93,46 +148,128 @@
         <div class="col-12 col-md-7 flex column">
           <!-- Summary Cards -->
           <div class="row q-col-gutter-md q-mb-md">
-            <div class="col-12 col-sm-6">
-               <q-card class="bg-blue-1 shadow-1 h-100">
+            <div class="col-12 col-sm-4">
+               <q-card class="bg-blue-1 shadow-1 full-height">
                  <q-card-section>
-                   <div class="text-subtitle2 text-primary text-weight-bold">Gastos do Processo MANUAL</div>
+                   <div class="text-subtitle2 text-primary text-weight-bold row items-center no-wrap">
+                     Gastos Processo MANUAL
+                     <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer text-grey-6">
+                       <q-tooltip class="text-body2" max-width="320px">
+                         <b>Custo Mensal:</b> (Volume × TMA ÷ 60) × Custo Hora + Custo Erros<br/>
+                         <b>Custo Anual:</b> Custo Mensal × 12
+                       </q-tooltip>
+                     </q-icon>
+                   </div>
                    <div class="text-dark q-mt-sm">Mensal: <strong>{{ formatCurrency(custoManualMes) }}</strong></div>
                    <div class="text-dark">Anual: <strong>{{ formatCurrency(custoManualAno) }}</strong></div>
-                   <div class="text-caption q-mt-xs text-grey-7">~{{ (horasManuaisMes).toFixed(0) }} horas gastas no mês (divididas em {{ qtdPessoas }} pessoas)</div>
+                   <div class="text-caption q-mt-xs text-grey-7">~{{ (horasManuaisMes).toFixed(0) }}h gastas/mês ({{ qtdPessoas }} pessoas)</div>
                  </q-card-section>
                </q-card>
             </div>
-            <div class="col-12 col-sm-6">
-               <q-card class="bg-orange-1 shadow-1 h-100">
+            <div class="col-12 col-sm-4">
+               <q-card class="bg-orange-1 shadow-1 full-height">
                  <q-card-section>
-                   <div class="text-subtitle2 text-accent text-weight-bold">Gastos Recorrentes RPA (OPEX)</div>
+                   <div class="text-subtitle2 text-accent text-weight-bold row items-center no-wrap">
+                     Gastos Recorrentes RPA
+                     <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer text-grey-6">
+                       <q-tooltip class="text-body2" max-width="320px">
+                         <b>OPEX Mensal:</b> (Licença Anual ÷ 12) + Manutenção + Custo LLM<br/>
+                         <b>OPEX Anual:</b> OPEX Mensal × 12<br/>
+                         <i>Não inclui o investimento de implantação (Capex).</i>
+                       </q-tooltip>
+                     </q-icon>
+                   </div>
                    <div class="text-dark q-mt-sm">Mensal: <strong>{{ formatCurrency(custoRpaMes) }}</strong></div>
                    <div class="text-dark">Anual: <strong>{{ formatCurrency(custoRpaMes * 12) }}</strong></div>
-                   <div class="text-caption q-mt-xs text-grey-7">Proporção da licença + manutenção mensal e estrutura recorrente. Exclui a implantação inicial.</div>
+                   <div class="text-caption q-mt-xs text-grey-7">Licença + manutenção recorrente. Exclui implantação.</div>
+                 </q-card-section>
+               </q-card>
+            </div>
+            <div class="col-12 col-sm-4">
+               <q-card class="bg-green-1 shadow-1 full-height">
+                 <q-card-section>
+                   <div class="text-subtitle2 text-positive text-weight-bold row items-center no-wrap">
+                     Horas Liberadas do Time
+                     <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer text-grey-6">
+                       <q-tooltip class="text-body2" max-width="320px">
+                         <b>Mensal:</b> Volume × TMA ÷ 60 = horas que o robô assume<br/>
+                         <b>Anual:</b> Horas Mensal × 12<br/>
+                         <b>Por pessoa:</b> Horas Mensal ÷ Qtd Pessoas<br/>
+                         <i>Tempo que o time deixa de gastar com o processo manual e pode dedicar a atividades estratégicas.</i>
+                       </q-tooltip>
+                     </q-icon>
+                   </div>
+                   <div class="text-dark q-mt-sm">Mensal: <strong>{{ horasLiberadasMes.toFixed(0) }}h</strong></div>
+                   <div class="text-dark">Anual: <strong>{{ horasLiberadasAno.toFixed(0) }}h</strong></div>
+                   <div class="text-caption q-mt-xs text-grey-7">~{{ horasLiberadasPorPessoa.toFixed(0) }}h/mês por pessoa para atividades estratégicas</div>
                  </q-card-section>
                </q-card>
             </div>
           </div>
 
           <!-- Payback and ROI -->
-          <q-card class="clean-card shadow-4 bg-white q-mb-md">
-            <q-card-section class="q-pa-md d-flex justify-around items-center row">
-              <div class="col-12 col-sm-6 text-center q-pa-sm border-right">
-                <div class="text-subtitle1 text-weight-bold text-dark">Tempo Estimado de Payback</div>
-                <div class="text-h3 text-weight-bolder q-mt-sm" :class="paybackMeses && paybackMeses > 0 ? 'text-positive' : 'text-negative'">
-                  {{ paybackMeses && paybackMeses > 0 ? paybackMeses.toFixed(1) + ' Meses' : 'Não se paga' }}
-                </div>
-              </div>
-              
-              <div class="col-12 col-sm-6 text-center q-pa-sm">
-                <div class="text-subtitle1 text-weight-bold text-dark">Economia Anual (Ano 1)</div>
-                <div class="text-h3 text-weight-bolder q-mt-sm" :class="economiaAno1 >= 0 ? 'text-positive' : 'text-negative'">
-                  {{ formatCurrency(economiaAno1) }}
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
+          <div class="row q-col-gutter-md q-mb-md">
+            <div class="col-12 col-sm-4">
+              <q-card class="clean-card shadow-4 bg-white full-height">
+                <q-card-section class="text-center q-pa-md">
+                  <div class="text-subtitle2 text-weight-bold text-dark row items-center justify-center no-wrap">
+                    Tempo Estimado de Payback
+                    <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer text-grey-6">
+                      <q-tooltip class="text-body2" max-width="320px">
+                        <b>Fórmula:</b> Investimento Implantação ÷ (Custo Manual Mensal − OPEX RPA Mensal)<br/>
+                        <i>Quantos meses até o investimento inicial ser recuperado pela economia mensal gerada.</i>
+                      </q-tooltip>
+                    </q-icon>
+                  </div>
+                  <div class="text-h5 text-weight-bolder q-mt-sm" :class="paybackMeses && paybackMeses > 0 ? 'text-positive' : 'text-negative'">
+                    {{ paybackMeses && paybackMeses > 0 ? paybackMeses.toFixed(1) + ' Meses' : 'Não se paga' }}
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
+
+            <div class="col-12 col-sm-4">
+              <q-card class="clean-card shadow-4 bg-white full-height">
+                <q-card-section class="text-center q-pa-md">
+                  <div class="text-subtitle2 text-weight-bold text-dark row items-center justify-center no-wrap">
+                    Economia Anual (Ano 1)
+                    <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer text-grey-6">
+                      <q-tooltip class="text-body2" max-width="320px">
+                        <b>Fórmula:</b> Custo Manual Anual − Custo RPA Ano 1<br/>
+                        <b>Custo RPA Ano 1:</b> Implantação + Licença + (Manutenção × 12) + (LLM × 12)<br/>
+                        <i>Inclui o investimento de implantação (Capex) no primeiro ano.</i>
+                      </q-tooltip>
+                    </q-icon>
+                  </div>
+                  <div class="text-h5 text-weight-bolder q-mt-sm" :class="economiaAno1 >= 0 ? 'text-positive' : 'text-negative'">
+                    {{ formatCurrency(economiaAno1) }}
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
+
+            <div class="col-12 col-sm-4">
+              <q-card class="clean-card shadow-4 bg-white full-height">
+                <q-card-section class="text-center q-pa-md">
+                  <div class="text-subtitle2 text-weight-bold text-dark row items-center justify-center no-wrap">
+                    ROI Acumulado (2 Anos)
+                    <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer text-grey-6">
+                      <q-tooltip class="text-body2" max-width="320px">
+                        <b>Fórmula:</b> (Custo Manual Anual × 2) − (Custo RPA Ano 1 + Custo RPA Ano 2)<br/>
+                        <b>Ano 1:</b> Implantação + Licença + (Manutenção × 12) + (LLM × 12)<br/>
+                        <b>Ano 2:</b> Licença + (Manutenção × 12) + (LLM × 12)<br/>
+                        <i>No 2º ano o custo de implantação não se repete, apenas custos recorrentes (OPEX).</i>
+                      </q-tooltip>
+                    </q-icon>
+                  </div>
+                  <div class="text-h5 text-weight-bolder q-mt-sm" :class="roiAcumulado2Anos >= 0 ? 'text-positive' : 'text-negative'">
+                    {{ formatCurrency(roiAcumulado2Anos) }}
+                  </div>
+                  <div class="text-caption text-grey-7 q-mt-xs">Sem custo de implantação no 2º ano</div>
+                </q-card-section>
+              </q-card>
+            </div>
+          </div>
 
           <!-- Chart -->
           <q-card class="clean-card shadow-2 flex-grow-1">
@@ -181,7 +318,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'
 import { useMeta } from 'quasar'
 import { useToolExport } from 'src/composables/useToolExport'
@@ -205,10 +342,41 @@ const qtdPessoas = ref(3)
 const custoHora = ref(45)
 const custoErrosMes = ref(1500)
 
+// Campos auxiliares (opcionais)
+const showAuxiliar = ref(false)
+const execucoesDia = ref(null)
+const diasUteis = ref(21)
+const jornadaDiaria = ref(8)
+const salarioMedio = ref(null)
+
+// Auto-preenche Volume Mensal quando auxiliar preenchido
+watch([execucoesDia, diasUteis], ([exec, dias]) => {
+  if (exec && exec > 0 && dias && dias > 0) {
+    volumeM.value = exec * dias
+  }
+})
+
+// Auto-preenche Custo Hora quando salário informado
+watch([salarioMedio, jornadaDiaria, diasUteis], ([salario, jornada, dias]) => {
+  if (salario && salario > 0 && jornada && jornada > 0 && dias && dias > 0) {
+    custoHora.value = Math.round((salario / (jornada * dias)) * 100) / 100
+  }
+})
+
 const custoImplementacao = ref(25000)
 const custoLicencaAnual = ref(12000)
 const custoManutencaoMensal = ref(1000)
 const custoLLMMensal = ref(0)
+
+const horasTimeMes = computed(() => {
+  if (!execucoesDia.value || !diasUteis.value || !tmaMinutos.value) return 0
+  return (execucoesDia.value * diasUteis.value * tmaMinutos.value) / 60
+})
+
+const horasPorPessoaDia = computed(() => {
+  if (!horasTimeMes.value || !qtdPessoas.value || !diasUteis.value) return 0
+  return horasTimeMes.value / qtdPessoas.value / diasUteis.value
+})
 
 const horasManuaisMes = computed(() => {
   return (volumeM.value * tmaMinutos.value) / 60
@@ -232,6 +400,29 @@ const custoRpaAno1 = computed(() => {
 
 const economiaAno1 = computed(() => {
   return custoManualAno.value - custoRpaAno1.value
+})
+
+const custoRpaAno2 = computed(() => {
+  return custoLicencaAnual.value + (custoManutencaoMensal.value * 12) + (custoLLMMensal.value * 12)
+})
+
+const roiAcumulado2Anos = computed(() => {
+  const custoManual2Anos = custoManualAno.value * 2
+  const custoRpa2Anos = custoRpaAno1.value + custoRpaAno2.value
+  return custoManual2Anos - custoRpa2Anos
+})
+
+const horasLiberadasMes = computed(() => {
+  return horasManuaisMes.value
+})
+
+const horasLiberadasAno = computed(() => {
+  return horasLiberadasMes.value * 12
+})
+
+const horasLiberadasPorPessoa = computed(() => {
+  if (!qtdPessoas.value || qtdPessoas.value <= 0) return 0
+  return horasLiberadasMes.value / qtdPessoas.value
 })
 
 const paybackMeses = computed(() => {
@@ -322,7 +513,11 @@ function getExportData () {
       { label: 'Custo RPA Mensal (OPEX recorrente)', value: formatCurrency(custoRpaMes.value) },
       { label: 'Custo RPA Total Ano 1', value: formatCurrency(custoRpaAno1.value) },
       { label: 'Tempo Estimado de Payback', value: paybackMeses.value > 0 ? `${paybackMeses.value.toFixed(1)} meses` : 'Não se paga com os parâmetros atuais' },
-      { label: 'Economia Anual (Ano 1)', value: formatCurrency(economiaAno1.value) }
+      { label: 'Economia Anual (Ano 1)', value: formatCurrency(economiaAno1.value) },
+      { label: 'Custo RPA Ano 2 (somente recorrente)', value: formatCurrency(custoRpaAno2.value) },
+      { label: 'ROI Acumulado (2 Anos)', value: formatCurrency(roiAcumulado2Anos.value) },
+      { label: 'Horas Liberadas do Time (Mensal)', value: `${horasLiberadasMes.value.toFixed(0)} horas (~${horasLiberadasPorPessoa.value.toFixed(0)}h por pessoa)` },
+      { label: 'Horas Liberadas do Time (Anual)', value: `${horasLiberadasAno.value.toFixed(0)} horas` }
     ],
     chartData: chartRawData
   }
