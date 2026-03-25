@@ -253,8 +253,8 @@
                 <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer" style="color: #bf360c;">
                   <q-tooltip class="text-body2" max-width="360px">
                     <b>Capacidade:</b> {{ qtdPessoas }} pessoas × {{ jornadaDiaria }}h × {{ diasUteis }} dias = {{ capacidadeDisponivelMes.toFixed(0) }}h/mês<br/>
-                    <b>Demanda:</b> {{ volumeM.toLocaleString('pt-BR') }} × {{ tmaMinutos }}min ÷ 60 = {{ horasManuaisMes.toFixed(0) }}h/mês<br/>
-                    <b>Pessoas necessárias:</b> {{ horasManuaisMes.toFixed(0) }}h ÷ ({{ jornadaDiaria }}h × {{ diasUteis }}d) = {{ pessoasNecessarias }} pessoas<br/>
+                    <b>Demanda:</b> {{ volumeM.toLocaleString('pt-BR') }} × {{ tmaMinutos }}min ÷ 60 = {{ horasDemandaTotalMes.toFixed(0) }}h/mês<br/>
+                    <b>Pessoas necessárias:</b> {{ horasDemandaTotalMes.toFixed(0) }}h ÷ ({{ jornadaDiaria }}h × {{ diasUteis }}d) = {{ pessoasNecessarias }} pessoas<br/>
                     <i>O robô absorve tanto o volume atual quanto o represado.</i>
                   </q-tooltip>
                 </q-icon>
@@ -266,10 +266,10 @@
               <div class="q-mb-md">
                 <div class="row items-center justify-between q-mb-xs">
                   <span class="text-caption text-weight-bold text-grey-8">Utilização da capacidade</span>
-                  <span class="text-caption text-weight-bold text-negative">{{ Math.round((horasManuaisMes / capacidadeDisponivelMes) * 100) }}%</span>
+                  <span class="text-caption text-weight-bold text-negative">{{ Math.round((horasDemandaTotalMes / capacidadeDisponivelMes) * 100) }}%</span>
                 </div>
                 <q-linear-progress
-                  :value="Math.min(capacidadeDisponivelMes / horasManuaisMes, 1)"
+                  :value="Math.min(capacidadeDisponivelMes / horasDemandaTotalMes, 1)"
                   color="negative"
                   track-color="red-1"
                   size="10px"
@@ -279,7 +279,7 @@
                 <div class="row justify-between" style="flex-wrap: wrap; gap: 2px;">
                   <span class="text-caption text-grey-6">0h</span>
                   <span class="text-caption text-positive text-weight-bold">{{ capacidadeDisponivelMes.toFixed(0) }}h capacidade</span>
-                  <span class="text-caption text-negative text-weight-bold">{{ horasManuaisMes.toFixed(0) }}h demanda</span>
+                  <span class="text-caption text-negative text-weight-bold">{{ horasDemandaTotalMes.toFixed(0) }}h demanda</span>
                 </div>
               </div>
 
@@ -338,8 +338,32 @@
                 </div>
               </div>
 
+              <!-- Toggle de cálculo -->
+              <div class="q-mt-md q-pa-sm rounded-borders" style="background: rgba(3,72,148,0.06); border: 1px solid rgba(3,72,148,0.15);">
+                <q-toggle
+                  v-model="usarVolumeTotalNoCalculo"
+                  color="primary"
+                  dense
+                  class="q-mb-xs"
+                >
+                  <template v-slot:default>
+                    <div class="q-ml-sm">
+                      <div class="text-caption text-weight-bold text-dark">
+                        {{ usarVolumeTotalNoCalculo ? 'Calculando com demanda total' : 'Calculando só o que o time atende' }}
+                      </div>
+                      <div class="text-caption text-grey-7">
+                        {{ usarVolumeTotalNoCalculo
+                          ? `Usando ${volumeM.toLocaleString('pt-BR')} transações (${horasDemandaTotalMes.toFixed(0)}h) — inclui volume represado no custo`
+                          : `Usando ${volumeAtendidoMes.toLocaleString('pt-BR')} transações (${capacidadeDisponivelMes.toFixed(0)}h) — apenas o que o time consegue fazer`
+                        }}
+                      </div>
+                    </div>
+                  </template>
+                </q-toggle>
+              </div>
+
               <!-- Conclusão -->
-              <div class="q-mt-md q-pa-sm rounded-borders row items-center" style="background: rgba(76,175,80,0.08); border: 1px solid rgba(76,175,80,0.2);">
+              <div class="q-mt-sm q-pa-sm rounded-borders row items-center" style="background: rgba(76,175,80,0.08); border: 1px solid rgba(76,175,80,0.2);">
                 <q-icon name="smart_toy" color="positive" size="sm" class="q-mr-sm" />
                 <div class="text-caption text-grey-8">
                   <strong class="text-positive">Com RPA:</strong> o robô absorve as {{ volumeM.toLocaleString('pt-BR') }} transações/mês sem precisar contratar +{{ pessoasFaltantes }} pessoas
@@ -806,6 +830,7 @@ const custoLLMMensal = ref(0)
 const outrosCustosRecorrentes = ref(0)
 const reducaoTempo = ref(80)
 const reducaoErros = ref(90)
+const usarVolumeTotalNoCalculo = ref(true)
 
 const horasTimeMes = computed(() => {
   if (!execucoesDia.value || !diasUteis.value || !tmaMinutos.value) return 0
@@ -818,8 +843,17 @@ const horasPorPessoaDia = computed(() => {
 })
 
 // === CUSTO MANUAL (AS-IS) ===
-const horasManuaisMes = computed(() => {
+// Horas totais da demanda (sempre calculado, usado em capacidade e gráficos)
+const horasDemandaTotalMes = computed(() => {
   return (volumeM.value * tmaMinutos.value) / 60
+})
+
+// Horas usadas no cálculo financeiro (depende do toggle)
+const horasManuaisMes = computed(() => {
+  if (!usarVolumeTotalNoCalculo.value && capacidadeExcedida.value) {
+    return capacidadeDisponivelMes.value
+  }
+  return horasDemandaTotalMes.value
 })
 
 const custoManualMes = computed(() => {
@@ -850,7 +884,7 @@ const capacidadeDisponivelMes = computed(() => {
 })
 
 const capacidadeExcedida = computed(() => {
-  return horasManuaisMes.value > capacidadeDisponivelMes.value && capacidadeDisponivelMes.value > 0
+  return horasDemandaTotalMes.value > capacidadeDisponivelMes.value && capacidadeDisponivelMes.value > 0
 })
 
 // Volume que o time consegue atender vs demanda real
@@ -876,7 +910,7 @@ const horasRepresadasMes = computed(() => {
 // Pessoas necessárias para atender 100% da demanda
 const pessoasNecessarias = computed(() => {
   if (!jornadaDiaria.value || !diasUteis.value || jornadaDiaria.value <= 0 || diasUteis.value <= 0) return qtdPessoas.value
-  return Math.ceil(horasManuaisMes.value / (jornadaDiaria.value * diasUteis.value))
+  return Math.ceil(horasDemandaTotalMes.value / (jornadaDiaria.value * diasUteis.value))
 })
 
 const pessoasFaltantes = computed(() => {
@@ -1192,7 +1226,8 @@ function exportToJSON () {
     execucoesDia: execucoesDia.value,
     diasUteis: diasUteis.value,
     jornadaDiaria: jornadaDiaria.value,
-    salarioMedio: salarioMedio.value
+    salarioMedio: salarioMedio.value,
+    usarVolumeTotalNoCalculo: usarVolumeTotalNoCalculo.value
   }
   const blob = new Blob([JSON.stringify(params, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -1230,6 +1265,8 @@ function importFromJSON () {
         if (data.diasUteis !== undefined) diasUteis.value = data.diasUteis
         if (data.jornadaDiaria !== undefined) jornadaDiaria.value = data.jornadaDiaria
         if (data.salarioMedio !== undefined) salarioMedio.value = data.salarioMedio
+        if (data.usarVolumeTotalNoCalculo !== undefined) usarVolumeTotalNoCalculo.value = data.usarVolumeTotalNoCalculo
+        if (data.outrosCustosRecorrentes !== undefined) outrosCustosRecorrentes.value = data.outrosCustosRecorrentes
       } catch {
         alert('Arquivo JSON inválido.')
       }
