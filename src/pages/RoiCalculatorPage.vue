@@ -160,17 +160,52 @@
             </q-card-section>
           </q-card>
 
-          <!-- Alerta de Capacidade -->
-          <q-banner v-if="capacidadeExcedida" class="bg-warning text-dark q-mt-md rounded-borders" dense>
-            <template v-slot:avatar><q-icon name="warning" color="dark" /></template>
-            As horas necessárias (<strong>{{ horasManuaisMes.toFixed(0) }}h/mês</strong>) excedem a capacidade do time
-            (<strong>{{ capacidadeDisponivelMes.toFixed(0) }}h/mês</strong> = {{ qtdPessoas }} pessoas × {{ jornadaDiaria }}h × {{ diasUteis }} dias).
-            Verifique se o volume ou TMA informados estão corretos, ou se há horas extras envolvidas.
-          </q-banner>
         </div>
 
         <!-- Results Column -->
         <div class="col-12 col-md-7 flex column">
+          <!-- Análise de Capacidade -->
+          <q-card v-if="capacidadeExcedida" class="q-mb-md shadow-2" style="border-left: 4px solid #ff9800;">
+            <q-card-section class="q-pa-md">
+              <div class="row items-center q-mb-sm">
+                <q-icon name="warning" color="warning" size="sm" class="q-mr-sm" />
+                <div class="text-subtitle2 text-weight-bold text-dark">Demanda Excede Capacidade do Time</div>
+                <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer text-grey-6">
+                  <q-tooltip class="text-body2" max-width="360px">
+                    <b>Capacidade:</b> {{ qtdPessoas }} pessoas × {{ jornadaDiaria }}h × {{ diasUteis }} dias = {{ capacidadeDisponivelMes.toFixed(0) }}h/mês<br/>
+                    <b>Demanda:</b> {{ volumeM.toLocaleString('pt-BR') }} × {{ tmaMinutos }}min ÷ 60 = {{ horasManuaisMes.toFixed(0) }}h/mês<br/>
+                    <b>Volume atendido:</b> Capacidade × 60 ÷ TMA<br/>
+                    <b>Represado:</b> Volume total − Volume atendido<br/>
+                    <i>O robô absorve tanto o volume atual quanto o represado.</i>
+                  </q-tooltip>
+                </q-icon>
+              </div>
+
+              <div class="row q-col-gutter-md">
+                <div class="col-6 col-sm-3">
+                  <div class="text-caption text-grey-7">Capacidade do time</div>
+                  <div class="text-weight-bold">{{ capacidadeDisponivelMes.toFixed(0) }}h/mês</div>
+                </div>
+                <div class="col-6 col-sm-3">
+                  <div class="text-caption text-grey-7">Demanda real</div>
+                  <div class="text-weight-bold text-negative">{{ horasManuaisMes.toFixed(0) }}h/mês</div>
+                </div>
+                <div class="col-6 col-sm-3">
+                  <div class="text-caption text-grey-7">O time atende</div>
+                  <div class="text-weight-bold text-primary">{{ volumeAtendidoMes.toLocaleString('pt-BR') }} de {{ volumeM.toLocaleString('pt-BR') }} <span class="text-caption">({{ percentualAtendido.toFixed(0) }}%)</span></div>
+                </div>
+                <div class="col-6 col-sm-3">
+                  <div class="text-caption text-grey-7">Volume represado</div>
+                  <div class="text-weight-bold text-negative">{{ volumeRepresadoMes.toLocaleString('pt-BR') }}/mês <span class="text-caption">({{ horasRepresadasMes.toFixed(0) }}h)</span></div>
+                </div>
+              </div>
+
+              <div class="text-caption text-grey-8 q-mt-sm" style="border-top: 1px solid #eee; padding-top: 8px;">
+                O robô absorve 100% da demanda — tanto as {{ volumeAtendidoMes.toLocaleString('pt-BR') }} transações que o time faz hoje quanto as {{ volumeRepresadoMes.toLocaleString('pt-BR') }} que ficam represadas.
+              </div>
+            </q-card-section>
+          </q-card>
+
           <!-- Summary Cards -->
           <div class="row q-col-gutter-md q-mb-md">
             <div class="col-12 col-sm-4">
@@ -444,6 +479,26 @@ const capacidadeExcedida = computed(() => {
   return horasManuaisMes.value > capacidadeDisponivelMes.value && capacidadeDisponivelMes.value > 0
 })
 
+// Volume que o time consegue atender vs demanda real
+const volumeAtendidoMes = computed(() => {
+  if (!capacidadeExcedida.value || !tmaMinutos.value || tmaMinutos.value <= 0) return volumeM.value
+  return Math.floor((capacidadeDisponivelMes.value * 60) / tmaMinutos.value)
+})
+
+const volumeRepresadoMes = computed(() => {
+  if (!capacidadeExcedida.value) return 0
+  return volumeM.value - volumeAtendidoMes.value
+})
+
+const percentualAtendido = computed(() => {
+  if (!volumeM.value || volumeM.value <= 0) return 100
+  return (volumeAtendidoMes.value / volumeM.value) * 100
+})
+
+const horasRepresadasMes = computed(() => {
+  return (volumeRepresadoMes.value * tmaMinutos.value) / 60
+})
+
 // === CUSTO RPA ===
 const custoRpaMes = computed(() => {
   return (custoLicencaAnual.value / 12) + custoManutencaoMensal.value + custoLLMMensal.value
@@ -597,7 +652,12 @@ function getExportData () {
       { label: 'Economia Acumulada (2 Anos)', value: formatCurrency(economiaAcumulada2Anos.value) },
       { label: 'ROI 2 Anos (%)', value: `${roiPercentual2Anos.value.toFixed(1)}%` },
       { label: 'Horas Liberadas do Time (Mensal)', value: `${horasLiberadasMes.value.toFixed(0)} horas (~${horasLiberadasPorPessoa.value.toFixed(0)}h por pessoa)` },
-      { label: 'Horas Liberadas do Time (Anual)', value: `${horasLiberadasAno.value.toFixed(0)} horas` }
+      { label: 'Horas Liberadas do Time (Anual)', value: `${horasLiberadasAno.value.toFixed(0)} horas` },
+      ...(capacidadeExcedida.value ? [
+        { label: 'Capacidade do Time', value: `${capacidadeDisponivelMes.value.toFixed(0)}h/mês (${qtdPessoas.value} pessoas × ${jornadaDiaria.value}h × ${diasUteis.value} dias)` },
+        { label: 'Volume Atendido pelo Time', value: `${volumeAtendidoMes.value.toLocaleString('pt-BR')} de ${volumeM.value.toLocaleString('pt-BR')} (${percentualAtendido.value.toFixed(0)}%)` },
+        { label: 'Volume Represado (não atendido)', value: `${volumeRepresadoMes.value.toLocaleString('pt-BR')} transações/mês (${horasRepresadasMes.value.toFixed(0)}h)` }
+      ] : [])
     ],
     chartData: chartRawData
   }
