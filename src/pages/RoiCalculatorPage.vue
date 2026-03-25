@@ -8,6 +8,79 @@
         <div class="glow-line bg-accent mx-auto"></div>
       </div>
 
+      <!-- Banner Indicadores de Retorno (FULL WIDTH) -->
+      <q-card class="roi-banner q-mb-xl shadow-4">
+        <q-card-section class="q-pa-lg">
+          <div class="row items-center q-col-gutter-lg">
+            <div class="col-6 col-md-3 text-center">
+              <div class="roi-metric">
+                <q-icon name="replay" size="28px" class="roi-icon q-mb-xs" />
+                <div class="roi-value" :class="paybackMeses !== null ? '' : 'roi-negative'">
+                  {{ paybackMeses !== null ? paybackMeses.toFixed(1) : '—' }}
+                </div>
+                <div class="roi-label">{{ paybackMeses !== null ? 'meses de payback' : 'Inviável' }}</div>
+                <q-tooltip class="text-body2" max-width="300px">
+                  <b>Fórmula:</b> {{ formatCurrency(custoImplementacao) }} ÷ {{ formatCurrency(economiaLiquidaMes) }}/mês<br/>
+                  <i>Meses até recuperar o investimento.</i>
+                </q-tooltip>
+              </div>
+            </div>
+            <div class="col-6 col-md-3 text-center">
+              <div class="roi-metric">
+                <q-icon name="looks_one" size="28px" class="roi-icon q-mb-xs" />
+                <div class="roi-value">{{ formatCurrency(economiaAno1) }}</div>
+                <div class="roi-percent" :class="roiPercentualAno1 >= 0 ? '' : 'roi-negative'">ROI {{ roiPercentualAno1.toFixed(0) }}%</div>
+                <div class="roi-label">economia ano 1</div>
+                <q-tooltip class="text-body2" max-width="300px">
+                  <b>Economia Bruta × 12 − Custo RPA Ano 1</b><br/>
+                  <i>Inclui implantação (Capex).</i>
+                </q-tooltip>
+              </div>
+            </div>
+            <div class="col-6 col-md-3 text-center">
+              <div class="roi-metric">
+                <q-icon name="looks_two" size="28px" class="roi-icon q-mb-xs" />
+                <div class="roi-value">{{ formatCurrency(economiaAno2) }}</div>
+                <div class="roi-label">economia ano 2 <span class="roi-tag">sem capex</span></div>
+                <q-tooltip class="text-body2" max-width="300px">
+                  <b>Economia Bruta × 12 − OPEX Ano 2</b><br/>
+                  <i>Sem custo de implantação.</i>
+                </q-tooltip>
+              </div>
+            </div>
+            <div class="col-6 col-md-3 text-center">
+              <div class="roi-metric roi-highlight">
+                <q-icon name="emoji_events" size="28px" class="roi-icon-gold q-mb-xs" />
+                <div class="roi-value-lg">{{ formatCurrency(economiaAcumulada2Anos) }}</div>
+                <div class="roi-percent-lg">ROI {{ roiPercentual2Anos.toFixed(0) }}%</div>
+                <div class="roi-label">total em 2 anos</div>
+                <q-tooltip class="text-body2" max-width="300px">
+                  <b>Ano 1 + Ano 2</b> = {{ formatCurrency(economiaAno1) }} + {{ formatCurrency(economiaAno2) }}<br/>
+                  <b>ROI%:</b> Economia ÷ Investimento × 100
+                </q-tooltip>
+              </div>
+            </div>
+          </div>
+          <!-- Ações: Gráficos + Export -->
+          <div class="row justify-center items-center q-mt-lg q-gutter-sm">
+            <q-btn unelevated rounded icon="analytics" label="Ver Análises Gráficas" class="roi-btn" @click="showGraficos = true" />
+            <q-btn flat round icon="picture_as_pdf" class="roi-btn-icon" :loading="exportingPDF" @click="exportToPDF">
+              <q-tooltip>Exportar PDF</q-tooltip>
+            </q-btn>
+            <q-btn flat round icon="table_chart" class="roi-btn-icon" :loading="exportingExcel" @click="exportToExcel">
+              <q-tooltip>Exportar Excel</q-tooltip>
+            </q-btn>
+            <div class="roi-separator"></div>
+            <q-btn flat round icon="file_download" class="roi-btn-icon" @click="exportToJSON">
+              <q-tooltip>Exportar Parâmetros (JSON)</q-tooltip>
+            </q-btn>
+            <q-btn flat round icon="file_upload" class="roi-btn-icon" @click="importFromJSON">
+              <q-tooltip>Importar Parâmetros (JSON)</q-tooltip>
+            </q-btn>
+          </div>
+        </q-card-section>
+      </q-card>
+
       <div class="row q-col-gutter-xl justify-center">
         <!-- Inputs Column -->
         <div class="col-12 col-md-5">
@@ -17,7 +90,7 @@
               <div class="text-h6 text-weight-bold">Parâmetros do Processo</div>
             </q-card-section>
             
-            <q-card-section class="q-gutter-md">
+            <q-card-section class="q-gutter-sm q-pa-md">
               <!-- Calculadora Auxiliar -->
               <q-expansion-item
                 v-model="showAuxiliar"
@@ -141,6 +214,13 @@
                 </template>
               </q-input>
 
+              <q-input outlined v-model.number="outrosCustosRecorrentes" type="number" label="Outros Custos Recorrentes (Mensal R$)" prefix="R$">
+                <template v-slot:prepend><q-icon name="add_circle_outline" /></template>
+                <template v-slot:append>
+                  <q-icon name="info" class="cursor-pointer text-grey"><q-tooltip class="text-body2">Outros custos mensais recorrentes do RPA: horas de suporte N2, treinamento, infra dedicada, etc.</q-tooltip></q-icon>
+                </template>
+              </q-input>
+
               <q-separator class="q-my-md bg-grey-3" />
               <div class="text-subtitle1 text-weight-bold text-primary">Estimativas de Redução</div>
 
@@ -165,43 +245,106 @@
         <!-- Results Column -->
         <div class="col-12 col-md-7 flex column">
           <!-- Análise de Capacidade -->
-          <q-card v-if="capacidadeExcedida" class="q-mb-md shadow-2" style="border-left: 4px solid #ff9800;">
-            <q-card-section class="q-pa-md">
-              <div class="row items-center q-mb-sm">
-                <q-icon name="warning" color="warning" size="sm" class="q-mr-sm" />
-                <div class="text-subtitle2 text-weight-bold text-dark">Demanda Excede Capacidade do Time</div>
-                <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer text-grey-6">
+          <q-card v-if="capacidadeExcedida" class="q-mb-md shadow-3 capacidade-card">
+            <q-card-section class="capacidade-header q-py-sm q-px-md">
+              <div class="row items-center no-wrap">
+                <q-icon name="warning_amber" size="sm" class="q-mr-sm" style="color: #e65100;" />
+                <div class="text-subtitle1 text-weight-bold" style="color: #e65100;">Demanda Excede Capacidade do Time</div>
+                <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer" style="color: #bf360c;">
                   <q-tooltip class="text-body2" max-width="360px">
                     <b>Capacidade:</b> {{ qtdPessoas }} pessoas × {{ jornadaDiaria }}h × {{ diasUteis }} dias = {{ capacidadeDisponivelMes.toFixed(0) }}h/mês<br/>
                     <b>Demanda:</b> {{ volumeM.toLocaleString('pt-BR') }} × {{ tmaMinutos }}min ÷ 60 = {{ horasManuaisMes.toFixed(0) }}h/mês<br/>
-                    <b>Volume atendido:</b> Capacidade × 60 ÷ TMA<br/>
-                    <b>Represado:</b> Volume total − Volume atendido<br/>
+                    <b>Pessoas necessárias:</b> {{ horasManuaisMes.toFixed(0) }}h ÷ ({{ jornadaDiaria }}h × {{ diasUteis }}d) = {{ pessoasNecessarias }} pessoas<br/>
                     <i>O robô absorve tanto o volume atual quanto o represado.</i>
                   </q-tooltip>
                 </q-icon>
               </div>
+            </q-card-section>
 
-              <div class="row q-col-gutter-md">
-                <div class="col-6 col-sm-3">
-                  <div class="text-caption text-grey-7">Capacidade do time</div>
-                  <div class="text-weight-bold">{{ capacidadeDisponivelMes.toFixed(0) }}h/mês</div>
+            <q-card-section class="q-pt-sm q-pb-md">
+              <!-- Barra de progresso visual da capacidade -->
+              <div class="q-mb-md">
+                <div class="row items-center justify-between q-mb-xs">
+                  <span class="text-caption text-weight-bold text-grey-8">Utilização da capacidade</span>
+                  <span class="text-caption text-weight-bold text-negative">{{ Math.round((horasManuaisMes / capacidadeDisponivelMes) * 100) }}%</span>
                 </div>
-                <div class="col-6 col-sm-3">
-                  <div class="text-caption text-grey-7">Demanda real</div>
-                  <div class="text-weight-bold text-negative">{{ horasManuaisMes.toFixed(0) }}h/mês</div>
-                </div>
-                <div class="col-6 col-sm-3">
-                  <div class="text-caption text-grey-7">O time atende</div>
-                  <div class="text-weight-bold text-primary">{{ volumeAtendidoMes.toLocaleString('pt-BR') }} de {{ volumeM.toLocaleString('pt-BR') }} <span class="text-caption">({{ percentualAtendido.toFixed(0) }}%)</span></div>
-                </div>
-                <div class="col-6 col-sm-3">
-                  <div class="text-caption text-grey-7">Volume represado</div>
-                  <div class="text-weight-bold text-negative">{{ volumeRepresadoMes.toLocaleString('pt-BR') }}/mês <span class="text-caption">({{ horasRepresadasMes.toFixed(0) }}h)</span></div>
+                <q-linear-progress
+                  :value="Math.min(capacidadeDisponivelMes / horasManuaisMes, 1)"
+                  color="negative"
+                  track-color="red-1"
+                  size="10px"
+                  rounded
+                  class="q-mb-xs"
+                />
+                <div class="row justify-between" style="flex-wrap: wrap; gap: 2px;">
+                  <span class="text-caption text-grey-6">0h</span>
+                  <span class="text-caption text-positive text-weight-bold">{{ capacidadeDisponivelMes.toFixed(0) }}h capacidade</span>
+                  <span class="text-caption text-negative text-weight-bold">{{ horasManuaisMes.toFixed(0) }}h demanda</span>
                 </div>
               </div>
 
-              <div class="text-caption text-grey-8 q-mt-sm" style="border-top: 1px solid #eee; padding-top: 8px;">
-                O robô absorve 100% da demanda — tanto as {{ volumeAtendidoMes.toLocaleString('pt-BR') }} transações que o time faz hoje quanto as {{ volumeRepresadoMes.toLocaleString('pt-BR') }} que ficam represadas.
+              <!-- Métricas em breakdown items -->
+              <div class="row q-col-gutter-sm">
+                <div class="col-6 col-sm-3">
+                  <div class="breakdown-item">
+                    <div class="row items-center no-wrap q-mb-xs">
+                      <q-icon name="groups" size="16px" color="primary" class="q-mr-xs" />
+                      <span class="text-caption text-weight-bold text-grey-8">Time atual</span>
+                    </div>
+                    <div class="text-subtitle1 text-weight-bolder text-primary">{{ qtdPessoas }} pessoas</div>
+                    <div class="text-caption text-grey-6">{{ capacidadeDisponivelMes.toFixed(0) }}h/mês disponíveis</div>
+                  </div>
+                </div>
+
+                <div class="col-6 col-sm-3">
+                  <div class="breakdown-item">
+                    <div class="row items-center no-wrap q-mb-xs">
+                      <q-icon name="check_circle" size="16px" color="positive" class="q-mr-xs" />
+                      <span class="text-caption text-weight-bold text-grey-8">Atendido</span>
+                    </div>
+                    <div class="text-subtitle1 text-weight-bolder text-positive">{{ volumeAtendidoMes.toLocaleString('pt-BR') }}</div>
+                    <div class="text-caption text-grey-6">{{ percentualAtendido.toFixed(0) }}% da demanda</div>
+                  </div>
+                </div>
+
+                <div class="col-6 col-sm-3">
+                  <div class="breakdown-item">
+                    <div class="row items-center no-wrap q-mb-xs">
+                      <q-icon name="block" size="16px" color="negative" class="q-mr-xs" />
+                      <span class="text-caption text-weight-bold text-grey-8">Represado</span>
+                    </div>
+                    <div class="text-subtitle1 text-weight-bolder text-negative">{{ volumeRepresadoMes.toLocaleString('pt-BR') }}</div>
+                    <div class="text-caption text-grey-6">{{ horasRepresadasMes.toFixed(0) }}h/mês sem atender</div>
+                  </div>
+                </div>
+
+                <div class="col-6 col-sm-3">
+                  <div class="breakdown-item" style="background: rgba(244,67,54,0.06); border: 1px dashed #ef9a9a;">
+                    <div class="row items-center no-wrap q-mb-xs">
+                      <q-icon name="person_add" size="16px" color="negative" class="q-mr-xs" />
+                      <span class="text-caption text-weight-bold text-grey-8">Precisaria de</span>
+                      <q-icon name="info_outline" size="13px" class="q-ml-xs cursor-pointer text-grey-5">
+                        <q-tooltip class="text-body2" max-width="300px">
+                          <b>Para atender 100%:</b> {{ pessoasNecessarias }} pessoas<br/>
+                          <b>Faltam:</b> +{{ pessoasFaltantes }} pessoas<br/>
+                          <b>Custo adicional:</b> ~{{ formatCurrency(custoContratarFaltantes) }}/mês<br/>
+                          <i>Ou automatizar com RPA sem contratar ninguém.</i>
+                        </q-tooltip>
+                      </q-icon>
+                    </div>
+                    <div class="text-subtitle1 text-weight-bolder text-negative">+{{ pessoasFaltantes }} pessoas</div>
+                    <div class="text-caption text-grey-6">~{{ formatCurrency(custoContratarFaltantes) }}/mês a mais</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Conclusão -->
+              <div class="q-mt-md q-pa-sm rounded-borders row items-center" style="background: rgba(76,175,80,0.08); border: 1px solid rgba(76,175,80,0.2);">
+                <q-icon name="smart_toy" color="positive" size="sm" class="q-mr-sm" />
+                <div class="text-caption text-grey-8">
+                  <strong class="text-positive">Com RPA:</strong> o robô absorve as {{ volumeM.toLocaleString('pt-BR') }} transações/mês sem precisar contratar +{{ pessoasFaltantes }} pessoas
+                  (<strong class="text-positive">economia de {{ formatCurrency(custoContratarFaltantes) }}/mês</strong> em contratação).
+                </div>
               </div>
             </q-card-section>
           </q-card>
@@ -217,7 +360,7 @@
             <q-card-section class="q-pt-none">
               <div class="row q-col-gutter-md">
                 <!-- Custo do Time -->
-                <div class="col-12 col-sm-4">
+                <div class="col-12 col-md-4">
                   <div class="breakdown-item">
                     <div class="row items-center no-wrap q-mb-xs">
                       <q-icon name="groups" size="18px" color="primary" class="q-mr-xs" />
@@ -236,7 +379,7 @@
                 </div>
 
                 <!-- Custo do Processo (Horas) -->
-                <div class="col-12 col-sm-4">
+                <div class="col-12 col-md-4">
                   <div class="breakdown-item">
                     <div class="row items-center no-wrap q-mb-xs">
                       <q-icon name="timer" size="18px" color="primary" class="q-mr-xs" />
@@ -256,7 +399,7 @@
                 </div>
 
                 <!-- Custo com Erros -->
-                <div class="col-12 col-sm-4">
+                <div class="col-12 col-md-4">
                   <div class="breakdown-item">
                     <div class="row items-center no-wrap q-mb-xs">
                       <q-icon name="error_outline" size="18px" color="negative" class="q-mr-xs" />
@@ -277,9 +420,9 @@
 
               <!-- Total -->
               <q-separator class="q-my-sm" />
-              <div class="row items-center justify-between">
+              <div class="row items-center justify-between" style="gap: 8px; flex-wrap: wrap;">
                 <div>
-                  <span class="text-weight-bold text-dark">Total do Processo (Esforço + Erros):</span>
+                  <span class="text-weight-bold text-dark" style="font-size: 0.85rem;">Total do Processo (Esforço + Erros):</span>
                   <q-icon name="info_outline" size="14px" class="q-ml-xs cursor-pointer text-grey-5">
                     <q-tooltip class="text-body2" max-width="300px">
                       <b>Custo Mensal:</b> Custo por Esforço + Custo com Erros<br/>
@@ -289,8 +432,8 @@
                   </q-icon>
                 </div>
                 <div class="text-right">
-                  <span class="text-h6 text-weight-bolder text-primary">{{ formatCurrency(custoManualMes) }}/mês</span>
-                  <span class="text-caption text-grey-7 q-ml-sm">({{ formatCurrency(custoManualAno) }}/ano)</span>
+                  <div class="text-weight-bolder text-primary" style="font-size: clamp(0.95rem, 2.5vw, 1.25rem);">{{ formatCurrency(custoManualMes) }}/mês</div>
+                  <div class="text-caption text-grey-7">({{ formatCurrency(custoManualAno) }}/ano)</div>
                 </div>
               </div>
             </q-card-section>
@@ -307,7 +450,7 @@
             <q-card-section class="q-pt-none">
               <div class="row q-col-gutter-md">
                 <!-- Implantação -->
-                <div class="col-12 col-sm-3">
+                <div class="col-6 col-md-3">
                   <div class="breakdown-item">
                     <div class="row items-center no-wrap q-mb-xs">
                       <q-icon name="build" size="18px" color="accent" class="q-mr-xs" />
@@ -325,7 +468,7 @@
                 </div>
 
                 <!-- Licença -->
-                <div class="col-12 col-sm-3">
+                <div class="col-6 col-md-3">
                   <div class="breakdown-item">
                     <div class="row items-center no-wrap q-mb-xs">
                       <q-icon name="vpn_key" size="18px" color="accent" class="q-mr-xs" />
@@ -344,7 +487,7 @@
                 </div>
 
                 <!-- Manutenção + Nuvem -->
-                <div class="col-12 col-sm-3">
+                <div class="col-6 col-md-3">
                   <div class="breakdown-item">
                     <div class="row items-center no-wrap q-mb-xs">
                       <q-icon name="cloud_sync" size="18px" color="accent" class="q-mr-xs" />
@@ -363,7 +506,7 @@
                 </div>
 
                 <!-- IA / LLM -->
-                <div class="col-12 col-sm-3">
+                <div class="col-6 col-md-3">
                   <div class="breakdown-item">
                     <div class="row items-center no-wrap q-mb-xs">
                       <q-icon name="psychology" size="18px" color="accent" class="q-mr-xs" />
@@ -381,28 +524,35 @@
                     <div class="text-caption text-grey-6 q-mt-xs">Tokens e APIs de IA</div>
                   </div>
                 </div>
+
+                <!-- Outros Custos -->
+                <div v-if="outrosCustosRecorrentes > 0" class="col-6 col-md-3">
+                  <div class="breakdown-item">
+                    <div class="row items-center no-wrap q-mb-xs">
+                      <q-icon name="add_circle_outline" size="18px" color="accent" class="q-mr-xs" />
+                      <span class="text-caption text-weight-bold text-grey-8">Outros</span>
+                    </div>
+                    <div class="text-h6 text-weight-bolder text-accent">{{ formatCurrency(outrosCustosRecorrentes) }}</div>
+                    <div class="text-caption text-grey-7">{{ formatCurrency(outrosCustosRecorrentes * 12) }} / ano</div>
+                    <div class="text-caption text-grey-6 q-mt-xs">Suporte, treinamento, etc</div>
+                  </div>
+                </div>
               </div>
 
               <!-- Totais Ano 1 vs Ano 2 -->
               <q-separator class="q-my-sm" />
-              <div class="row q-col-gutter-sm">
-                <div class="col-12 col-sm-6">
-                  <div class="row items-center justify-between">
-                    <span class="text-weight-bold text-dark">OPEX Mensal (recorrente):</span>
-                    <span class="text-weight-bolder text-accent">{{ formatCurrency(custoRpaMes) }}/mês</span>
+              <div class="row q-col-gutter-sm items-center" style="flex-wrap: wrap;">
+                <div class="col-12 col-md-6">
+                  <div class="row items-center justify-between" style="gap: 4px; flex-wrap: wrap;">
+                    <span class="text-weight-bold text-dark" style="font-size: 0.85rem;">OPEX Mensal:</span>
+                    <span class="text-weight-bolder text-accent" style="font-size: 0.95rem;">{{ formatCurrency(custoRpaMes) }}/mês</span>
                   </div>
                 </div>
-                <div class="col-12 col-sm-3">
-                  <div class="row items-center justify-between">
-                    <span class="text-caption text-weight-bold text-grey-7">Total Ano 1:</span>
-                    <span class="text-weight-bold text-dark">{{ formatCurrency(custoRpaAno1) }}</span>
-                  </div>
+                <div class="col-6 col-md-3">
+                  <div class="text-caption text-weight-bold text-grey-7">Ano 1: <span class="text-dark">{{ formatCurrency(custoRpaAno1) }}</span></div>
                 </div>
-                <div class="col-12 col-sm-3">
-                  <div class="row items-center justify-between">
-                    <span class="text-caption text-weight-bold text-grey-7">Total Ano 2:</span>
-                    <span class="text-weight-bold text-dark">{{ formatCurrency(custoRpaAno2) }}</span>
-                  </div>
+                <div class="col-6 col-md-3">
+                  <div class="text-caption text-weight-bold text-grey-7">Ano 2: <span class="text-dark">{{ formatCurrency(custoRpaAno2) }}</span></div>
                 </div>
               </div>
             </q-card-section>
@@ -419,7 +569,7 @@
             <q-card-section class="q-pt-none">
               <div class="row q-col-gutter-md">
                 <!-- Horas manuais atuais -->
-                <div class="col-12 col-sm-3">
+                <div class="col-6 col-md-3">
                   <div class="breakdown-item">
                     <div class="row items-center no-wrap q-mb-xs">
                       <q-icon name="hourglass_full" size="18px" color="negative" class="q-mr-xs" />
@@ -438,7 +588,7 @@
                 </div>
 
                 <!-- Horas liberadas -->
-                <div class="col-12 col-sm-3">
+                <div class="col-6 col-md-3">
                   <div class="breakdown-item">
                     <div class="row items-center no-wrap q-mb-xs">
                       <q-icon name="trending_up" size="18px" color="positive" class="q-mr-xs" />
@@ -457,7 +607,7 @@
                 </div>
 
                 <!-- Horas residuais -->
-                <div class="col-12 col-sm-3">
+                <div class="col-6 col-md-3">
                   <div class="breakdown-item">
                     <div class="row items-center no-wrap q-mb-xs">
                       <q-icon name="person_search" size="18px" color="grey-7" class="q-mr-xs" />
@@ -476,7 +626,7 @@
                 </div>
 
                 <!-- Por pessoa -->
-                <div class="col-12 col-sm-3">
+                <div class="col-6 col-md-3">
                   <div class="breakdown-item">
                     <div class="row items-center no-wrap q-mb-xs">
                       <q-icon name="person" size="18px" color="positive" class="q-mr-xs" />
@@ -497,150 +647,96 @@
             </q-card-section>
           </q-card>
 
-          <!-- Indicadores de ROI — Breakdown -->
-          <q-card class="shadow-4 bg-white q-mb-md">
-            <q-card-section class="q-pb-sm">
-              <div class="text-subtitle1 text-weight-bold text-dark row items-center">
-                <q-icon name="trending_up" class="q-mr-sm" size="sm" color="primary" />
-                Indicadores de Retorno
-              </div>
-            </q-card-section>
-            <q-card-section class="q-pt-none">
-              <div class="row q-col-gutter-md">
-                <!-- Payback -->
-                <div class="col-12 col-sm-3">
-                  <div class="breakdown-item text-center">
-                    <div class="row items-center no-wrap justify-center q-mb-xs">
-                      <q-icon name="replay" size="18px" color="primary" class="q-mr-xs" />
-                      <span class="text-caption text-weight-bold text-grey-8">Payback</span>
-                      <q-icon name="info_outline" size="14px" class="q-ml-xs cursor-pointer text-grey-5">
-                        <q-tooltip class="text-body2" max-width="320px">
-                          <b>Fórmula:</b> {{ formatCurrency(custoImplementacao) }} ÷ {{ formatCurrency(economiaLiquidaMes) }}/mês<br/>
-                          <b>Economia Líquida:</b> Economia Bruta − OPEX RPA<br/>
-                          <i>Meses até recuperar o investimento inicial.</i>
-                        </q-tooltip>
-                      </q-icon>
-                    </div>
-                    <div class="text-h5 text-weight-bolder q-mt-xs" :class="paybackMeses !== null ? 'text-positive' : 'text-negative'">
-                      {{ paybackMeses !== null ? paybackMeses.toFixed(1) : '—' }}
-                    </div>
-                    <div class="text-caption" :class="paybackMeses !== null ? 'text-positive' : 'text-negative'">
-                      {{ paybackMeses !== null ? 'meses' : 'Inviável' }}
-                    </div>
-                  </div>
-                </div>
-
-                <!-- ROI Ano 1 -->
-                <div class="col-12 col-sm-3">
-                  <div class="breakdown-item text-center">
-                    <div class="row items-center no-wrap justify-center q-mb-xs">
-                      <q-icon name="looks_one" size="18px" color="primary" class="q-mr-xs" />
-                      <span class="text-caption text-weight-bold text-grey-8">ROI Ano 1</span>
-                      <q-icon name="info_outline" size="14px" class="q-ml-xs cursor-pointer text-grey-5">
-                        <q-tooltip class="text-body2" max-width="320px">
-                          <b>Economia:</b> ({{ formatCurrency(economiaBrutaMes) }} × 12) − {{ formatCurrency(custoRpaAno1) }}<br/>
-                          <b>ROI%:</b> {{ formatCurrency(economiaAno1) }} ÷ {{ formatCurrency(custoRpaAno1) }} × 100<br/>
-                          <i>Inclui implantação (Capex) + custos recorrentes (OPEX).</i>
-                        </q-tooltip>
-                      </q-icon>
-                    </div>
-                    <div class="text-h5 text-weight-bolder q-mt-xs" :class="economiaAno1 >= 0 ? 'text-positive' : 'text-negative'">
-                      {{ formatCurrency(economiaAno1) }}
-                    </div>
-                    <div class="text-caption text-weight-bold" :class="roiPercentualAno1 >= 0 ? 'text-positive' : 'text-negative'">
-                      ROI: {{ roiPercentualAno1.toFixed(0) }}%
-                    </div>
-                  </div>
-                </div>
-
-                <!-- ROI Ano 2 -->
-                <div class="col-12 col-sm-3">
-                  <div class="breakdown-item text-center">
-                    <div class="row items-center no-wrap justify-center q-mb-xs">
-                      <q-icon name="looks_two" size="18px" color="primary" class="q-mr-xs" />
-                      <span class="text-caption text-weight-bold text-grey-8">ROI Ano 2</span>
-                      <q-icon name="info_outline" size="14px" class="q-ml-xs cursor-pointer text-grey-5">
-                        <q-tooltip class="text-body2" max-width="320px">
-                          <b>Economia:</b> ({{ formatCurrency(economiaBrutaMes) }} × 12) − {{ formatCurrency(custoRpaAno2) }}<br/>
-                          <b>Custo Ano 2:</b> Apenas OPEX (sem implantação)<br/>
-                          <i>No 2º ano não se paga implantação novamente.</i>
-                        </q-tooltip>
-                      </q-icon>
-                    </div>
-                    <div class="text-h5 text-weight-bolder q-mt-xs" :class="economiaAno2 >= 0 ? 'text-positive' : 'text-negative'">
-                      {{ formatCurrency(economiaAno2) }}
-                    </div>
-                    <div class="text-caption text-grey-6">Sem custo de implantação</div>
-                  </div>
-                </div>
-
-                <!-- ROI Acumulado 2 Anos -->
-                <div class="col-12 col-sm-3">
-                  <div class="breakdown-item text-center" style="background: rgba(76,175,80,0.08);">
-                    <div class="row items-center no-wrap justify-center q-mb-xs">
-                      <q-icon name="emoji_events" size="18px" color="positive" class="q-mr-xs" />
-                      <span class="text-caption text-weight-bold text-grey-8">Total 2 Anos</span>
-                      <q-icon name="info_outline" size="14px" class="q-ml-xs cursor-pointer text-grey-5">
-                        <q-tooltip class="text-body2" max-width="320px">
-                          <b>Economia:</b> Ano 1 + Ano 2 = {{ formatCurrency(economiaAno1) }} + {{ formatCurrency(economiaAno2) }}<br/>
-                          <b>ROI%:</b> {{ formatCurrency(economiaAcumulada2Anos) }} ÷ ({{ formatCurrency(custoRpaAno1) }} + {{ formatCurrency(custoRpaAno2) }}) × 100
-                        </q-tooltip>
-                      </q-icon>
-                    </div>
-                    <div class="text-h5 text-weight-bolder q-mt-xs" :class="economiaAcumulada2Anos >= 0 ? 'text-positive' : 'text-negative'">
-                      {{ formatCurrency(economiaAcumulada2Anos) }}
-                    </div>
-                    <div class="text-weight-bold" :class="roiPercentual2Anos >= 0 ? 'text-positive' : 'text-negative'" style="font-size: 1.1rem;">
-                      ROI: {{ roiPercentual2Anos.toFixed(0) }}%
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-
-          <!-- Chart -->
-          <q-card class="clean-card shadow-2 flex-grow-1">
-            <q-card-section class="q-pb-none">
-              <div class="text-h6 text-weight-bold text-primary row items-center">
-                <q-icon name="show_chart" class="q-mr-sm" size="sm" />
-                Gráfico Acumulativo de Retorno
-              </div>
-              <div class="text-caption text-grey">A Linha Laranja inicia com seu valor inicial de investimento total (Capex).<br/> O ponto exato em que a Linha Laranja (RPA) cruza abaixo da Azul (Manual) é onde a Automação se pagou totalmente e começa a gerar o <b>Lucro Definitivo</b>.</div>
-            </q-card-section>
-            <q-card-section>
-              <apexchart ref="chartRef" type="line" height="320" :options="chartOptions" :series="chartSeries"></apexchart>
-            </q-card-section>
-          </q-card>
         </div>
       </div>
 
-      <!-- Export Section -->
-      <div class="row justify-center q-mt-xl">
-        <q-card flat bordered class="export-card">
-          <q-card-section class="row items-center justify-center q-gutter-sm q-py-md">
-            <div class="col-12 text-center text-caption text-grey-6 text-weight-bold text-uppercase q-mb-xs">Exportar Resultado</div>
-            <q-btn
-              outline
-              icon="picture_as_pdf"
-              label="Exportar PDF"
-              color="negative"
-              :loading="exportingPDF"
-              @click="exportToPDF"
-              class="export-btn"
-            />
-            <q-btn
-              outline
-              icon="table_chart"
-              label="Exportar Excel"
-              color="positive"
-              :loading="exportingExcel"
-              @click="exportToExcel"
-              class="export-btn"
-            />
+      <!-- Dialog Análises Gráficas -->
+      <q-dialog v-model="showGraficos" maximized transition-show="slide-up" transition-hide="slide-down">
+        <q-card class="bg-grey-1">
+          <q-card-section class="bg-primary text-white row items-center q-py-sm">
+            <q-icon name="analytics" size="sm" class="q-mr-sm" />
+            <div class="text-h6 text-weight-bold">Análises Gráficas — Business Case RPA</div>
+            <q-space />
+            <q-btn flat round icon="close" color="white" v-close-popup />
+          </q-card-section>
+
+          <q-card-section class="q-pa-md" style="max-width: 1200px; margin: 0 auto;">
+            <!-- Gráfico 1: Custo Acumulativo -->
+            <q-card class="clean-card shadow-2 q-mb-md">
+              <q-card-section class="q-pb-none">
+                <div class="text-subtitle1 text-weight-bold text-primary row items-center">
+                  <q-icon name="show_chart" class="q-mr-sm" size="sm" />
+                  Custo Acumulativo: Manual vs RPA
+                </div>
+                <div class="text-caption text-grey">O cruzamento das linhas marca o ponto de payback — a partir dele, cada mês gera lucro definitivo.</div>
+              </q-card-section>
+              <q-card-section>
+                <apexchart ref="chartRef" type="line" height="350" :options="chartOptions" :series="chartSeries"></apexchart>
+              </q-card-section>
+            </q-card>
+
+            <!-- Gráfico 2: Comparativo Ano 1 vs Ano 2 -->
+            <q-card class="clean-card shadow-2 q-mb-md">
+              <q-card-section class="q-pb-none">
+                <div class="text-subtitle1 text-weight-bold text-primary row items-center">
+                  <q-icon name="bar_chart" class="q-mr-sm" size="sm" />
+                  Comparativo de Custos: Ano 1 vs Ano 2
+                </div>
+                <div class="text-caption text-grey">No Ano 2 o custo RPA cai significativamente sem a implantação, ampliando a economia.</div>
+              </q-card-section>
+              <q-card-section>
+                <apexchart type="bar" height="350" :options="chartComparativoOptions" :series="chartComparativoSeries"></apexchart>
+              </q-card-section>
+            </q-card>
+
+            <!-- Gráfico 3: Donuts lado a lado -->
+            <div class="row q-col-gutter-md q-mb-md">
+              <div class="col-12 col-md-6">
+                <q-card class="clean-card shadow-2 full-height">
+                  <q-card-section class="q-pb-none">
+                    <div class="text-subtitle1 text-weight-bold text-primary row items-center">
+                      <q-icon name="donut_large" class="q-mr-sm" size="sm" />
+                      Para Onde Vai o Investimento
+                    </div>
+                    <div class="text-caption text-grey">Composição do custo total RPA no Ano 1.</div>
+                  </q-card-section>
+                  <q-card-section>
+                    <apexchart type="donut" height="300" :options="chartDonutOptions" :series="chartDonutSeries"></apexchart>
+                  </q-card-section>
+                </q-card>
+              </div>
+              <div class="col-12 col-md-6">
+                <q-card class="clean-card shadow-2 full-height">
+                  <q-card-section class="q-pb-none">
+                    <div class="text-subtitle1 text-weight-bold text-primary row items-center">
+                      <q-icon name="schedule" class="q-mr-sm" size="sm" />
+                      Redistribuição do Tempo
+                    </div>
+                    <div class="text-caption text-grey">Horas que o robô assume vs supervisão humana residual.</div>
+                  </q-card-section>
+                  <q-card-section>
+                    <apexchart type="donut" height="300" :options="chartHorasDonutOptions" :series="chartHorasDonutSeries"></apexchart>
+                  </q-card-section>
+                </q-card>
+              </div>
+            </div>
+
+            <!-- Gráfico 4: Economia Acumulada -->
+            <q-card class="clean-card shadow-2 q-mb-md">
+              <q-card-section class="q-pb-none">
+                <div class="text-subtitle1 text-weight-bold text-primary row items-center">
+                  <q-icon name="area_chart" class="q-mr-sm" size="sm" />
+                  Economia Líquida Acumulada
+                </div>
+                <div class="text-caption text-grey">Evolução mês a mês da economia real. A linha vertical laranja marca o payback — a partir dali, é lucro.</div>
+              </q-card-section>
+              <q-card-section>
+                <apexchart type="area" height="350" :options="chartEconomiaOptions" :series="chartEconomiaSeries"></apexchart>
+              </q-card-section>
+            </q-card>
           </q-card-section>
         </q-card>
-      </div>
+      </q-dialog>
     </div>
   </q-page>
 </template>
@@ -663,6 +759,7 @@ useMeta({
 
 const apexchart = VueApexCharts
 const chartRef = ref(null)
+const showGraficos = ref(false)
 
 const volumeM = ref(3000)
 const tmaMinutos = ref(15)
@@ -706,6 +803,7 @@ const custoImplementacao = ref(25000)
 const custoLicencaAnual = ref(12000)
 const custoManutencaoMensal = ref(1000)
 const custoLLMMensal = ref(0)
+const outrosCustosRecorrentes = ref(0)
 const reducaoTempo = ref(80)
 const reducaoErros = ref(90)
 
@@ -775,17 +873,34 @@ const horasRepresadasMes = computed(() => {
   return (volumeRepresadoMes.value * tmaMinutos.value) / 60
 })
 
+// Pessoas necessárias para atender 100% da demanda
+const pessoasNecessarias = computed(() => {
+  if (!jornadaDiaria.value || !diasUteis.value || jornadaDiaria.value <= 0 || diasUteis.value <= 0) return qtdPessoas.value
+  return Math.ceil(horasManuaisMes.value / (jornadaDiaria.value * diasUteis.value))
+})
+
+const pessoasFaltantes = computed(() => {
+  return Math.max(0, pessoasNecessarias.value - qtdPessoas.value)
+})
+
+const custoContratarFaltantes = computed(() => {
+  if (!salarioMedio.value || salarioMedio.value <= 0) {
+    return pessoasFaltantes.value * custoHora.value * jornadaDiaria.value * diasUteis.value
+  }
+  return pessoasFaltantes.value * salarioMedio.value
+})
+
 // === CUSTO RPA ===
 const custoRpaMes = computed(() => {
-  return (custoLicencaAnual.value / 12) + custoManutencaoMensal.value + custoLLMMensal.value
+  return (custoLicencaAnual.value / 12) + custoManutencaoMensal.value + custoLLMMensal.value + outrosCustosRecorrentes.value
 })
 
 const custoRpaAno1 = computed(() => {
-  return custoImplementacao.value + custoLicencaAnual.value + (custoManutencaoMensal.value * 12) + (custoLLMMensal.value * 12)
+  return custoImplementacao.value + custoLicencaAnual.value + ((custoManutencaoMensal.value + custoLLMMensal.value + outrosCustosRecorrentes.value) * 12)
 })
 
 const custoRpaAno2 = computed(() => {
-  return custoLicencaAnual.value + (custoManutencaoMensal.value * 12) + (custoLLMMensal.value * 12)
+  return custoLicencaAnual.value + ((custoManutencaoMensal.value + custoLLMMensal.value + outrosCustosRecorrentes.value) * 12)
 })
 
 // === ECONOMIA (com fatores de redução) ===
@@ -900,6 +1015,95 @@ const chartSeries = computed(() => {
   ]
 })
 
+// === GRÁFICO 2: Comparativo Ano 1 vs Ano 2 ===
+const chartComparativoOptions = computed(() => ({
+  chart: { type: 'bar', toolbar: { show: false }, fontFamily: 'Inter, sans-serif' },
+  colors: ['#034894', '#ff6500', '#4caf50'],
+  plotOptions: { bar: { borderRadius: 4, columnWidth: '60%', dataLabels: { position: 'top' } } },
+  dataLabels: { enabled: true, formatter: (val) => formatCurrency(val), style: { fontSize: '10px', colors: ['#333'] }, offsetY: -20 },
+  xaxis: { categories: ['Ano 1', 'Ano 2'] },
+  yaxis: { labels: { formatter: (val) => formatCurrency(val) } },
+  legend: { position: 'top' },
+  tooltip: { y: { formatter: (val) => formatCurrency(val) } }
+}))
+
+const chartComparativoSeries = computed(() => [
+  { name: 'Custo Manual', data: [custoManualAno.value, custoManualAno.value] },
+  { name: 'Custo RPA', data: [custoRpaAno1.value, custoRpaAno2.value] },
+  { name: 'Economia', data: [economiaAno1.value, economiaAno2.value] }
+])
+
+// === GRÁFICO 3: Donut Composição Investimento ===
+const chartDonutOptions = computed(() => ({
+  chart: { type: 'donut', fontFamily: 'Inter, sans-serif' },
+  labels: outrosCustosRecorrentes.value > 0 ? ['Implantação', 'Licença', 'Manutenção', 'IA / LLM', 'Outros'] : ['Implantação', 'Licença', 'Manutenção', 'IA / LLM'],
+  colors: outrosCustosRecorrentes.value > 0 ? ['#034894', '#ff6500', '#2196f3', '#9c27b0', '#607d8b'] : ['#034894', '#ff6500', '#2196f3', '#9c27b0'],
+  legend: { position: 'bottom' },
+  dataLabels: { enabled: true, formatter: (val) => val.toFixed(0) + '%' },
+  tooltip: { y: { formatter: (val) => formatCurrency(val) } },
+  plotOptions: { pie: { donut: { size: '55%', labels: { show: true, total: { show: true, label: 'Total Ano 1', formatter: () => formatCurrency(custoRpaAno1.value) } } } } }
+}))
+
+const chartDonutSeries = computed(() => {
+  const series = [
+    custoImplementacao.value,
+    custoLicencaAnual.value,
+    custoManutencaoMensal.value * 12,
+    custoLLMMensal.value * 12
+  ]
+  if (outrosCustosRecorrentes.value > 0) series.push(outrosCustosRecorrentes.value * 12)
+  return series
+})
+
+// === GRÁFICO 4: Donut Horas ===
+const chartHorasDonutOptions = computed(() => ({
+  chart: { type: 'donut', fontFamily: 'Inter, sans-serif' },
+  labels: ['Liberadas pelo RPA', 'Supervisão/Exceções'],
+  colors: ['#4caf50', '#bdbdbd'],
+  legend: { position: 'bottom' },
+  dataLabels: { enabled: true, formatter: (val) => val.toFixed(0) + '%' },
+  tooltip: { y: { formatter: (val) => val.toFixed(0) + 'h/mês' } },
+  plotOptions: { pie: { donut: { size: '55%', labels: { show: true, total: { show: true, label: 'Total', formatter: () => horasManuaisMes.value.toFixed(0) + 'h' } } } } }
+}))
+
+const chartHorasDonutSeries = computed(() => [
+  Math.round(horasLiberadasMes.value),
+  Math.round(horasResiduaisMes.value)
+])
+
+// === GRÁFICO 5: Economia Acumulada (Area) ===
+const chartEconomiaOptions = computed(() => ({
+  chart: { type: 'area', toolbar: { show: false }, fontFamily: 'Inter, sans-serif' },
+  colors: ['#4caf50'],
+  stroke: { curve: 'smooth', width: 3 },
+  fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.5, opacityTo: 0.05 } },
+  xaxis: {
+    categories: Array.from({ length: 25 }, (_, i) => `Mês ${i}`),
+    title: { text: 'Meses', style: { fontWeight: 'bold' } }
+  },
+  yaxis: {
+    title: { text: 'Economia Acumulada (R$)', style: { fontWeight: 'bold' } },
+    labels: { formatter: (val) => formatCurrency(val) }
+  },
+  tooltip: { y: { formatter: (val) => formatCurrency(val) } },
+  annotations: paybackMeses.value !== null ? {
+    xaxis: [{
+      x: `Mês ${Math.ceil(paybackMeses.value)}`,
+      borderColor: '#ff6500',
+      label: { text: 'Payback', style: { color: '#fff', background: '#ff6500' } }
+    }]
+  } : {}
+}))
+
+const chartEconomiaSeries = computed(() => {
+  const data = []
+  for (let idx = 0; idx <= 24; idx++) {
+    const economiaAcum = (economiaLiquidaMes.value * idx) - custoImplementacao.value
+    data.push(Math.round(economiaAcum))
+  }
+  return [{ name: 'Economia Líquida Acumulada', data }]
+})
+
 function formatCurrency (value) {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -931,6 +1135,7 @@ function getExportData () {
       { label: 'Licenciamento Anual', value: formatCurrency(custoLicencaAnual.value) },
       { label: 'Manutenção / Nuvem Mensal', value: formatCurrency(custoManutencaoMensal.value) },
       { label: 'Custo IA / Tokens LLM Mensal', value: formatCurrency(custoLLMMensal.value) },
+      { label: 'Outros Custos Recorrentes Mensal', value: formatCurrency(outrosCustosRecorrentes.value) },
       { label: 'Redução de Tempo Prevista', value: `${reducaoTempo.value}%` },
       { label: 'Redução de Erros Prevista', value: `${reducaoErros.value}%` }
     ],
@@ -956,7 +1161,9 @@ function getExportData () {
       ...(capacidadeExcedida.value ? [
         { label: 'Capacidade do Time', value: `${capacidadeDisponivelMes.value.toFixed(0)}h/mês (${qtdPessoas.value} pessoas × ${jornadaDiaria.value}h × ${diasUteis.value} dias)` },
         { label: 'Volume Atendido pelo Time', value: `${volumeAtendidoMes.value.toLocaleString('pt-BR')} de ${volumeM.value.toLocaleString('pt-BR')} (${percentualAtendido.value.toFixed(0)}%)` },
-        { label: 'Volume Represado (não atendido)', value: `${volumeRepresadoMes.value.toLocaleString('pt-BR')} transações/mês (${horasRepresadasMes.value.toFixed(0)}h)` }
+        { label: 'Volume Represado (não atendido)', value: `${volumeRepresadoMes.value.toLocaleString('pt-BR')} transações/mês (${horasRepresadasMes.value.toFixed(0)}h)` },
+        { label: 'Pessoas necessárias (100% demanda)', value: `${pessoasNecessarias.value} pessoas (faltam +${pessoasFaltantes.value})` },
+        { label: 'Custo de contratar +' + pessoasFaltantes.value + ' pessoas', value: `${formatCurrency(custoContratarFaltantes.value)}/mês` }
       ] : [])
     ],
     chartData: chartRawData
@@ -964,6 +1171,73 @@ function getExportData () {
 }
 
 const { exportToPDF, exportToExcel, exportingPDF, exportingExcel } = useToolExport(getExportData, chartRef)
+
+// === IMPORT / EXPORT JSON ===
+function exportToJSON () {
+  const params = {
+    _version: 1,
+    _exportedAt: new Date().toISOString(),
+    volumeM: volumeM.value,
+    tmaMinutos: tmaMinutos.value,
+    qtdPessoas: qtdPessoas.value,
+    custoHora: custoHora.value,
+    custoErrosMes: custoErrosMes.value,
+    custoImplementacao: custoImplementacao.value,
+    custoLicencaAnual: custoLicencaAnual.value,
+    custoManutencaoMensal: custoManutencaoMensal.value,
+    custoLLMMensal: custoLLMMensal.value,
+    outrosCustosRecorrentes: outrosCustosRecorrentes.value,
+    reducaoTempo: reducaoTempo.value,
+    reducaoErros: reducaoErros.value,
+    execucoesDia: execucoesDia.value,
+    diasUteis: diasUteis.value,
+    jornadaDiaria: jornadaDiaria.value,
+    salarioMedio: salarioMedio.value
+  }
+  const blob = new Blob([JSON.stringify(params, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `roi-params-${new Date().toISOString().slice(0, 10)}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function importFromJSON () {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json'
+  input.onchange = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result)
+        if (data.volumeM !== undefined) volumeM.value = data.volumeM
+        if (data.tmaMinutos !== undefined) tmaMinutos.value = data.tmaMinutos
+        if (data.qtdPessoas !== undefined) qtdPessoas.value = data.qtdPessoas
+        if (data.custoHora !== undefined) custoHora.value = data.custoHora
+        if (data.custoErrosMes !== undefined) custoErrosMes.value = data.custoErrosMes
+        if (data.custoImplementacao !== undefined) custoImplementacao.value = data.custoImplementacao
+        if (data.custoLicencaAnual !== undefined) custoLicencaAnual.value = data.custoLicencaAnual
+        if (data.custoManutencaoMensal !== undefined) custoManutencaoMensal.value = data.custoManutencaoMensal
+        if (data.custoLLMMensal !== undefined) custoLLMMensal.value = data.custoLLMMensal
+        if (data.outrosCustosRecorrentes !== undefined) outrosCustosRecorrentes.value = data.outrosCustosRecorrentes
+        if (data.reducaoTempo !== undefined) reducaoTempo.value = data.reducaoTempo
+        if (data.reducaoErros !== undefined) reducaoErros.value = data.reducaoErros
+        if (data.execucoesDia !== undefined) execucoesDia.value = data.execucoesDia
+        if (data.diasUteis !== undefined) diasUteis.value = data.diasUteis
+        if (data.jornadaDiaria !== undefined) jornadaDiaria.value = data.jornadaDiaria
+        if (data.salarioMedio !== undefined) salarioMedio.value = data.salarioMedio
+      } catch {
+        alert('Arquivo JSON inválido.')
+      }
+    }
+    reader.readAsText(file)
+  }
+  input.click()
+}
 </script>
 
 <style scoped>
@@ -989,24 +1263,145 @@ const { exportToPDF, exportToExcel, exportingPDF, exportingExcel } = useToolExpo
 .flex-grow-1 {
   flex-grow: 1;
 }
+/* ROI Banner */
+.roi-banner {
+  background: linear-gradient(135deg, #034894 0%, #0d47a1 40%, #1565c0 100%);
+  color: white;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+.roi-banner::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.roi-metric {
+  position: relative;
+  cursor: default;
+}
+.roi-icon {
+  color: rgba(255,255,255,0.7);
+}
+.roi-icon-gold {
+  color: #ffd740;
+}
+.roi-value {
+  font-size: clamp(1rem, 2.5vw, 1.4rem);
+  font-weight: 800;
+  color: white;
+  line-height: 1.2;
+  word-break: break-word;
+}
+.roi-value-lg {
+  font-size: clamp(1.1rem, 3vw, 1.6rem);
+  font-weight: 900;
+  color: #ffd740;
+  line-height: 1.2;
+  word-break: break-word;
+}
+.roi-percent {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.9);
+}
+.roi-percent-lg {
+  font-size: clamp(0.9rem, 2vw, 1.2rem);
+  font-weight: 800;
+  color: #ffd740;
+}
+.roi-negative {
+  color: #ef9a9a !important;
+}
+.roi-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255,255,255,0.6);
+  font-weight: 600;
+  margin-top: 2px;
+}
+.roi-tag {
+  background: rgba(255,255,255,0.15);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.6rem;
+}
+.roi-highlight {
+  background: rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 12px 8px;
+  border: 1px solid rgba(255,215,64,0.2);
+}
+.roi-btn {
+  background: rgba(255,255,255,0.15) !important;
+  color: white !important;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 8px 28px;
+  border: 1px solid rgba(255,255,255,0.25);
+  backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
+}
+.roi-btn:hover {
+  background: rgba(255,255,255,0.25) !important;
+  border-color: rgba(255,255,255,0.4);
+}
+.roi-btn-icon {
+  color: rgba(255,255,255,0.6) !important;
+  transition: all 0.2s ease;
+}
+.roi-separator {
+  width: 1px;
+  height: 24px;
+  background: rgba(255,255,255,0.2);
+  margin: 0 4px;
+}
+.roi-btn-icon:hover {
+  color: white !important;
+  background: rgba(255,255,255,0.12) !important;
+}
+
+.capacidade-card {
+  border-left: 4px solid #e65100;
+  overflow: hidden;
+}
+.capacidade-header {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+}
 .breakdown-item {
   background: rgba(255,255,255,0.7);
   border-radius: 8px;
   padding: 12px;
   height: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
-.export-card {
-  width: 100%;
-  max-width: 480px;
-  border-radius: 12px;
-}
-.export-btn {
-  min-width: 160px;
+.breakdown-item .text-h5,
+.breakdown-item .text-h6,
+.breakdown-item .text-subtitle1 {
+  font-size: clamp(0.85rem, 2vw, 1.15rem);
+  line-height: 1.3;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 @media (max-width: 599px) {
   .border-right {
     border-right: none;
     border-bottom: 1px solid #e0e0e0;
+  }
+  .breakdown-item {
+    padding: 10px;
+  }
+  .breakdown-item .text-h5,
+  .breakdown-item .text-h6,
+  .breakdown-item .text-subtitle1 {
+    font-size: 0.9rem;
   }
 }
 </style>
