@@ -206,27 +206,99 @@
             </q-card-section>
           </q-card>
 
-          <!-- Summary Cards -->
+          <!-- Gastos Processo Manual — Breakdown Visual -->
+          <q-card class="bg-blue-1 shadow-1 q-mb-md">
+            <q-card-section class="q-pb-sm">
+              <div class="text-subtitle1 text-primary text-weight-bold row items-center">
+                <q-icon name="account_balance_wallet" class="q-mr-sm" size="sm" />
+                Gastos do Processo Manual (AS-IS)
+              </div>
+            </q-card-section>
+            <q-card-section class="q-pt-none">
+              <div class="row q-col-gutter-md">
+                <!-- Custo do Time -->
+                <div class="col-12 col-sm-4">
+                  <div class="breakdown-item">
+                    <div class="row items-center no-wrap q-mb-xs">
+                      <q-icon name="groups" size="18px" color="primary" class="q-mr-xs" />
+                      <span class="text-caption text-weight-bold text-grey-8">Custo do Time</span>
+                      <q-icon name="info_outline" size="14px" class="q-ml-xs cursor-pointer text-grey-5">
+                        <q-tooltip class="text-body2" max-width="300px">
+                          <b>Fórmula:</b> {{ qtdPessoas }} pessoas × {{ jornadaDiaria }}h/dia × {{ diasUteis }} dias × {{ formatCurrency(custoHora) }}/h<br/>
+                          <i>Quanto custa manter esse time dedicado ao processo, considerando jornada integral.</i>
+                        </q-tooltip>
+                      </q-icon>
+                    </div>
+                    <div class="text-h6 text-weight-bolder text-primary">{{ formatCurrency(custoTimeMes) }}</div>
+                    <div class="text-caption text-grey-7">{{ formatCurrency(custoTimeAno) }} / ano</div>
+                    <div class="text-caption text-grey-6 q-mt-xs">{{ qtdPessoas }} pessoas × {{ jornadaDiaria }}h × {{ diasUteis }}d × {{ formatCurrency(custoHora) }}/h</div>
+                  </div>
+                </div>
+
+                <!-- Custo do Processo (Horas) -->
+                <div class="col-12 col-sm-4">
+                  <div class="breakdown-item">
+                    <div class="row items-center no-wrap q-mb-xs">
+                      <q-icon name="timer" size="18px" color="primary" class="q-mr-xs" />
+                      <span class="text-caption text-weight-bold text-grey-8">Custo por Esforço</span>
+                      <q-icon name="info_outline" size="14px" class="q-ml-xs cursor-pointer text-grey-5">
+                        <q-tooltip class="text-body2" max-width="300px">
+                          <b>Fórmula:</b> {{ volumeM.toLocaleString('pt-BR') }} transações × {{ tmaMinutos }}min ÷ 60 × {{ formatCurrency(custoHora) }}/h<br/>
+                          <b>= {{ horasManuaisMes.toFixed(0) }}h</b> de trabalho efetivo no processo<br/>
+                          <i>Tempo real produtivo gasto nas transações. Pode ser menor que o custo do time se há ociosidade, ou maior se há demanda reprimida.</i>
+                        </q-tooltip>
+                      </q-icon>
+                    </div>
+                    <div class="text-h6 text-weight-bolder text-primary">{{ formatCurrency(custoProcessoHoras) }}</div>
+                    <div class="text-caption text-grey-7">{{ formatCurrency(custoProcessoHoras * 12) }} / ano</div>
+                    <div class="text-caption text-grey-6 q-mt-xs">{{ horasManuaisMes.toFixed(0) }}h/mês efetivas ({{ volumeM.toLocaleString('pt-BR') }} × {{ tmaMinutos }}min)</div>
+                  </div>
+                </div>
+
+                <!-- Custo com Erros -->
+                <div class="col-12 col-sm-4">
+                  <div class="breakdown-item">
+                    <div class="row items-center no-wrap q-mb-xs">
+                      <q-icon name="error_outline" size="18px" color="negative" class="q-mr-xs" />
+                      <span class="text-caption text-weight-bold text-grey-8">Custo com Erros</span>
+                      <q-icon name="info_outline" size="14px" class="q-ml-xs cursor-pointer text-grey-5">
+                        <q-tooltip class="text-body2" max-width="300px">
+                          <b>Valor informado:</b> {{ formatCurrency(custoErrosMes) }}/mês<br/>
+                          <i>Prejuízo mensal com falhas humanas, retrabalho, multas e atrasos. O RPA reduz {{ reducaoErros }}% desse custo.</i>
+                        </q-tooltip>
+                      </q-icon>
+                    </div>
+                    <div class="text-h6 text-weight-bolder text-negative">{{ formatCurrency(custoErrosMes) }}</div>
+                    <div class="text-caption text-grey-7">{{ formatCurrency(custoErrosMes * 12) }} / ano</div>
+                    <div class="text-caption text-grey-6 q-mt-xs">Retrabalho, multas e falhas humanas</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Total -->
+              <q-separator class="q-my-sm" />
+              <div class="row items-center justify-between">
+                <div>
+                  <span class="text-weight-bold text-dark">Total do Processo (Esforço + Erros):</span>
+                  <q-icon name="info_outline" size="14px" class="q-ml-xs cursor-pointer text-grey-5">
+                    <q-tooltip class="text-body2" max-width="300px">
+                      <b>Custo Mensal:</b> Custo por Esforço + Custo com Erros<br/>
+                      <b>{{ formatCurrency(custoProcessoHoras) }} + {{ formatCurrency(custoErrosMes) }} = {{ formatCurrency(custoManualMes) }}</b><br/>
+                      <i>Este é o valor usado nos cálculos de ROI. O "Custo do Time" é exibido como referência para comparação.</i>
+                    </q-tooltip>
+                  </q-icon>
+                </div>
+                <div class="text-right">
+                  <span class="text-h6 text-weight-bolder text-primary">{{ formatCurrency(custoManualMes) }}/mês</span>
+                  <span class="text-caption text-grey-7 q-ml-sm">({{ formatCurrency(custoManualAno) }}/ano)</span>
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <!-- Cards RPA e Horas Liberadas -->
           <div class="row q-col-gutter-md q-mb-md">
-            <div class="col-12 col-sm-4">
-               <q-card class="bg-blue-1 shadow-1 full-height">
-                 <q-card-section>
-                   <div class="text-subtitle2 text-primary text-weight-bold row items-center no-wrap">
-                     Gastos Processo MANUAL
-                     <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer text-grey-6">
-                       <q-tooltip class="text-body2" max-width="320px">
-                         <b>Custo Mensal:</b> (Volume × TMA ÷ 60) × Custo Hora + Custo Erros<br/>
-                         <b>Custo Anual:</b> Custo Mensal × 12
-                       </q-tooltip>
-                     </q-icon>
-                   </div>
-                   <div class="text-dark q-mt-sm">Mensal: <strong>{{ formatCurrency(custoManualMes) }}</strong></div>
-                   <div class="text-dark">Anual: <strong>{{ formatCurrency(custoManualAno) }}</strong></div>
-                   <div class="text-caption q-mt-xs text-grey-7">~{{ (horasManuaisMes).toFixed(0) }}h gastas/mês ({{ qtdPessoas }} pessoas)</div>
-                 </q-card-section>
-               </q-card>
-            </div>
-            <div class="col-12 col-sm-4">
+            <div class="col-12 col-sm-6">
                <q-card class="bg-orange-1 shadow-1 full-height">
                  <q-card-section>
                    <div class="text-subtitle2 text-accent text-weight-bold row items-center no-wrap">
@@ -245,7 +317,7 @@
                  </q-card-section>
                </q-card>
             </div>
-            <div class="col-12 col-sm-4">
+            <div class="col-12 col-sm-6">
                <q-card class="bg-green-1 shadow-1 full-height">
                  <q-card-section>
                    <div class="text-subtitle2 text-positive text-weight-bold row items-center no-wrap">
@@ -470,6 +542,20 @@ const custoManualAno = computed(() => {
   return custoManualMes.value * 12
 })
 
+// Custo do time dedicado (pessoas × jornada × dias × custoHora)
+const custoTimeMes = computed(() => {
+  return capacidadeDisponivelMes.value * custoHora.value
+})
+
+const custoTimeAno = computed(() => {
+  return custoTimeMes.value * 12
+})
+
+// Decomposição do custo manual
+const custoProcessoHoras = computed(() => {
+  return horasManuaisMes.value * custoHora.value
+})
+
 // === CAPACIDADE DO TIME ===
 const capacidadeDisponivelMes = computed(() => {
   return qtdPessoas.value * jornadaDiaria.value * diasUteis.value
@@ -639,9 +725,12 @@ function getExportData () {
       { label: 'Redução de Erros Prevista', value: `${reducaoErros.value}%` }
     ],
     results: [
-      { label: 'Horas Manuais por Mês', value: `${horasManuaisMes.value.toFixed(0)} horas (entre ${qtdPessoas.value} pessoas)` },
-      { label: 'Custo Manual Mensal (AS-IS)', value: formatCurrency(custoManualMes.value) },
-      { label: 'Custo Manual Anual (AS-IS)', value: formatCurrency(custoManualAno.value) },
+      { label: 'Custo do Time (Mensal)', value: `${formatCurrency(custoTimeMes.value)} (${qtdPessoas.value} pessoas × ${jornadaDiaria.value}h × ${diasUteis.value}d × ${formatCurrency(custoHora.value)}/h)` },
+      { label: 'Custo do Time (Anual)', value: formatCurrency(custoTimeAno.value) },
+      { label: 'Custo por Esforço (Mensal)', value: `${formatCurrency(custoProcessoHoras.value)} (${horasManuaisMes.value.toFixed(0)}h efetivas)` },
+      { label: 'Custo com Erros (Mensal)', value: formatCurrency(custoErrosMes.value) },
+      { label: 'Total Processo Manual (Mensal)', value: formatCurrency(custoManualMes.value) },
+      { label: 'Total Processo Manual (Anual)', value: formatCurrency(custoManualAno.value) },
       { label: 'Economia Bruta Mensal (com reduções)', value: formatCurrency(economiaBrutaMes.value) },
       { label: 'Custo RPA Mensal (OPEX recorrente)', value: formatCurrency(custoRpaMes.value) },
       { label: 'Economia Líquida Mensal', value: formatCurrency(economiaLiquidaMes.value) },
@@ -688,6 +777,12 @@ const { exportToPDF, exportToExcel, exportingPDF, exportingExcel } = useToolExpo
 }
 .flex-grow-1 {
   flex-grow: 1;
+}
+.breakdown-item {
+  background: rgba(255,255,255,0.7);
+  border-radius: 8px;
+  padding: 12px;
+  height: 100%;
 }
 .export-card {
   width: 100%;
