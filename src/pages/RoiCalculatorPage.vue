@@ -827,10 +827,6 @@ const custoLicencaMes = computed(() => {
   return custoLicencaAnual.value / 12
 })
 
-const custoOperacionalMes = computed(() => {
-  return custoManutencaoMensal.value + custoLLMMensal.value
-})
-
 // Horas residuais (o que sobra para o time após automação)
 const horasResiduaisMes = computed(() => {
   return horasManuaisMes.value - horasLiberadasMes.value
