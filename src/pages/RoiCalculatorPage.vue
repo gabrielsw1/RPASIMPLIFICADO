@@ -75,7 +75,7 @@
 
               <div class="text-subtitle1 text-weight-bold text-primary q-mt-sm">Custos do Processo Manual</div>
 
-              <q-input outlined v-model.number="volumeM" type="number" label="Volume Mensal de Transações" :rules="[val => val >= 0 || 'Obrigatório']" :hint="execucoesDia && execucoesDia > 0 ? 'Auto-calculado pela calculadora auxiliar' : ''">
+              <q-input outlined v-model.number="volumeM" type="number" label="Volume Mensal de Transações" :rules="[val => val >= 0 || 'Obrigatório']" :hint="execucoesDia && execucoesDia > 0 ? (auxiliarVolumeAtivo ? 'Auto-calculado pela auxiliar' : 'Modo manual — auxiliar desacoplado') : ''" @focus="onVolumeManualEdit">
                 <template v-slot:prepend><q-icon name="repeat" /></template>
                 <template v-slot:append>
                   <q-icon name="info" class="cursor-pointer text-grey"><q-tooltip class="text-body2">Quantas vezes essa tarefa/processo é realizada em um mês.</q-tooltip></q-icon>
@@ -89,14 +89,14 @@
                 </template>
               </q-input>
 
-              <q-input outlined v-model.number="qtdPessoas" type="number" label="Pessoas Envolvidas (Qtd)" :rules="[val => val >= 0 || 'Obrigatório']">
+              <q-input outlined v-model.number="qtdPessoas" type="number" label="Pessoas no Time (Qtd)" :rules="[val => val >= 0 || 'Obrigatório']">
                 <template v-slot:prepend><q-icon name="groups" /></template>
                 <template v-slot:append>
-                  <q-icon name="info" class="cursor-pointer text-grey"><q-tooltip class="text-body2">Quantas pessoas trabalham fazendo partes ou executando esse fluxo inteiro de processo.</q-tooltip></q-icon>
+                  <q-icon name="info" class="cursor-pointer text-grey"><q-tooltip class="text-body2">Quantas pessoas participam desse processo. Usado para calcular carga por pessoa e validar capacidade. Não altera o custo financeiro (que é baseado em Volume × TMA × Custo Hora).</q-tooltip></q-icon>
                 </template>
               </q-input>
 
-              <q-input outlined v-model.number="custoHora" type="number" label="Custo Hora/Homem (R$)" prefix="R$" :rules="[val => val >= 0 || 'Obrigatório']" :hint="salarioMedio && salarioMedio > 0 ? 'Auto-calculado pela calculadora auxiliar' : ''">
+              <q-input outlined v-model.number="custoHora" type="number" label="Custo Hora/Homem (R$)" prefix="R$" :rules="[val => val >= 0 || 'Obrigatório']" :hint="salarioMedio && salarioMedio > 0 ? (auxiliarCustoHoraAtivo ? 'Auto-calculado pela auxiliar' : 'Modo manual — auxiliar desacoplado') : ''" @focus="onCustoHoraManualEdit">
                 <template v-slot:prepend><q-icon name="monetization_on" /></template>
                 <template v-slot:append>
                   <q-icon name="info" class="cursor-pointer text-grey"><q-tooltip class="text-body2">Valor médio da hora do colaborador. Inclua o custo total como CLT/PJ e benefícios para melhor precisão.</q-tooltip></q-icon>
@@ -140,8 +140,33 @@
                   <q-icon name="info" class="cursor-pointer text-grey"><q-tooltip class="text-body2">Estimativa de gasto mensal com APIs de IA (OpenAI, Anthropic, etc) caso utilize Agentic Automation.</q-tooltip></q-icon>
                 </template>
               </q-input>
+
+              <q-separator class="q-my-md bg-grey-3" />
+              <div class="text-subtitle1 text-weight-bold text-primary">Estimativas de Redução</div>
+
+              <q-input outlined v-model.number="reducaoTempo" type="number" label="Redução de Tempo Prevista (%)" suffix="%" :rules="[val => val >= 0 && val <= 100 || '0-100%']">
+                <template v-slot:prepend><q-icon name="speed" /></template>
+                <template v-slot:append>
+                  <q-icon name="info" class="cursor-pointer text-grey"><q-tooltip class="text-body2">Percentual do tempo manual que o RPA elimina. 100% = automação total. 80% = padrão conservador. 65% = processos complexos com muitas exceções.</q-tooltip></q-icon>
+                </template>
+              </q-input>
+
+              <q-input outlined v-model.number="reducaoErros" type="number" label="Redução de Erros Prevista (%)" suffix="%" :rules="[val => val >= 0 && val <= 100 || '0-100%']">
+                <template v-slot:prepend><q-icon name="verified" /></template>
+                <template v-slot:append>
+                  <q-icon name="info" class="cursor-pointer text-grey"><q-tooltip class="text-body2">Percentual dos custos com erros/retrabalho que o RPA elimina. Robôs não erram em tarefas repetitivas. 90% = padrão. 100% = processo totalmente determinístico.</q-tooltip></q-icon>
+                </template>
+              </q-input>
             </q-card-section>
           </q-card>
+
+          <!-- Alerta de Capacidade -->
+          <q-banner v-if="capacidadeExcedida" class="bg-warning text-dark q-mt-md rounded-borders" dense>
+            <template v-slot:avatar><q-icon name="warning" color="dark" /></template>
+            As horas necessárias (<strong>{{ horasManuaisMes.toFixed(0) }}h/mês</strong>) excedem a capacidade do time
+            (<strong>{{ capacidadeDisponivelMes.toFixed(0) }}h/mês</strong> = {{ qtdPessoas }} pessoas × {{ jornadaDiaria }}h × {{ diasUteis }} dias).
+            Verifique se o volume ou TMA informados estão corretos, ou se há horas extras envolvidas.
+          </q-banner>
         </div>
 
         <!-- Results Column -->
@@ -192,10 +217,10 @@
                      Horas Liberadas do Time
                      <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer text-grey-6">
                        <q-tooltip class="text-body2" max-width="320px">
-                         <b>Mensal:</b> Volume × TMA ÷ 60 = horas que o robô assume<br/>
+                         <b>Mensal:</b> (Volume × TMA ÷ 60) × Redução Tempo %<br/>
                          <b>Anual:</b> Horas Mensal × 12<br/>
                          <b>Por pessoa:</b> Horas Mensal ÷ Qtd Pessoas<br/>
-                         <i>Tempo que o time deixa de gastar com o processo manual e pode dedicar a atividades estratégicas.</i>
+                         <i>Aplica o fator de redução ({{ reducaoTempo }}%). Não assume automação total.</i>
                        </q-tooltip>
                      </q-icon>
                    </div>
@@ -216,14 +241,16 @@
                     Tempo Estimado de Payback
                     <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer text-grey-6">
                       <q-tooltip class="text-body2" max-width="320px">
-                        <b>Fórmula:</b> Investimento Implantação ÷ (Custo Manual Mensal − OPEX RPA Mensal)<br/>
-                        <i>Quantos meses até o investimento inicial ser recuperado pela economia mensal gerada.</i>
+                        <b>Fórmula:</b> Implantação ÷ Economia Líquida Mensal<br/>
+                        <b>Economia Líquida:</b> (Horas × CustoHora × Red.Tempo%) + (Erros × Red.Erros%) − OPEX RPA<br/>
+                        <i>Quantos meses até o investimento inicial ser recuperado pela economia mensal.</i>
                       </q-tooltip>
                     </q-icon>
                   </div>
-                  <div class="text-h5 text-weight-bolder q-mt-sm" :class="paybackMeses && paybackMeses > 0 ? 'text-positive' : 'text-negative'">
-                    {{ paybackMeses && paybackMeses > 0 ? paybackMeses.toFixed(1) + ' Meses' : 'Não se paga' }}
+                  <div class="text-h5 text-weight-bolder q-mt-sm" :class="paybackMeses !== null ? 'text-positive' : 'text-negative'">
+                    {{ paybackMeses !== null ? paybackMeses.toFixed(1) + ' Meses' : 'Inviável' }}
                   </div>
+                  <div v-if="paybackMeses === null" class="text-caption text-negative q-mt-xs">OPEX RPA supera a economia mensal</div>
                 </q-card-section>
               </q-card>
             </div>
@@ -235,7 +262,8 @@
                     Economia Anual (Ano 1)
                     <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer text-grey-6">
                       <q-tooltip class="text-body2" max-width="320px">
-                        <b>Fórmula:</b> Custo Manual Anual − Custo RPA Ano 1<br/>
+                        <b>Fórmula:</b> (Economia Bruta Mensal × 12) − Custo RPA Ano 1<br/>
+                        <b>Economia Bruta:</b> (Horas × CustoHora × {{ reducaoTempo }}%) + (Erros × {{ reducaoErros }}%)<br/>
                         <b>Custo RPA Ano 1:</b> Implantação + Licença + (Manutenção × 12) + (LLM × 12)<br/>
                         <i>Inclui o investimento de implantação (Capex) no primeiro ano.</i>
                       </q-tooltip>
@@ -255,17 +283,20 @@
                     ROI Acumulado (2 Anos)
                     <q-icon name="info_outline" size="16px" class="q-ml-xs cursor-pointer text-grey-6">
                       <q-tooltip class="text-body2" max-width="320px">
-                        <b>Fórmula:</b> (Custo Manual Anual × 2) − (Custo RPA Ano 1 + Custo RPA Ano 2)<br/>
+                        <b>Economia:</b> (Economia Bruta × 24) − (Custo RPA Ano1 + Ano2)<br/>
+                        <b>ROI%:</b> Economia Acumulada ÷ Investimento Total × 100<br/>
                         <b>Ano 1:</b> Implantação + Licença + (Manutenção × 12) + (LLM × 12)<br/>
                         <b>Ano 2:</b> Licença + (Manutenção × 12) + (LLM × 12)<br/>
-                        <i>No 2º ano o custo de implantação não se repete, apenas custos recorrentes (OPEX).</i>
+                        <i>No 2º ano o custo de implantação não se repete.</i>
                       </q-tooltip>
                     </q-icon>
                   </div>
-                  <div class="text-h5 text-weight-bolder q-mt-sm" :class="roiAcumulado2Anos >= 0 ? 'text-positive' : 'text-negative'">
-                    {{ formatCurrency(roiAcumulado2Anos) }}
+                  <div class="text-h5 text-weight-bolder q-mt-sm" :class="economiaAcumulada2Anos >= 0 ? 'text-positive' : 'text-negative'">
+                    {{ formatCurrency(economiaAcumulada2Anos) }}
                   </div>
-                  <div class="text-caption text-grey-7 q-mt-xs">Sem custo de implantação no 2º ano</div>
+                  <div class="text-weight-bold q-mt-xs" :class="roiPercentual2Anos >= 0 ? 'text-positive' : 'text-negative'" style="font-size: 1.1rem;">
+                    ROI: {{ roiPercentual2Anos.toFixed(0) }}%
+                  </div>
                 </q-card-section>
               </q-card>
             </div>
@@ -349,24 +380,37 @@ const diasUteis = ref(21)
 const jornadaDiaria = ref(8)
 const salarioMedio = ref(null)
 
+// Flags para desacoplar auxiliar quando usuário edita manualmente
+const auxiliarVolumeAtivo = ref(true)
+const auxiliarCustoHoraAtivo = ref(true)
+
 // Auto-preenche Volume Mensal quando auxiliar preenchido
 watch([execucoesDia, diasUteis], ([exec, dias]) => {
-  if (exec && exec > 0 && dias && dias > 0) {
+  if (auxiliarVolumeAtivo.value && exec && exec > 0 && dias && dias > 0) {
     volumeM.value = exec * dias
   }
 })
 
 // Auto-preenche Custo Hora quando salário informado
 watch([salarioMedio, jornadaDiaria, diasUteis], ([salario, jornada, dias]) => {
-  if (salario && salario > 0 && jornada && jornada > 0 && dias && dias > 0) {
+  if (auxiliarCustoHoraAtivo.value && salario && salario > 0 && jornada && jornada > 0 && dias && dias > 0) {
     custoHora.value = Math.round((salario / (jornada * dias)) * 100) / 100
   }
 })
+
+function onVolumeManualEdit () {
+  if (execucoesDia.value && execucoesDia.value > 0) auxiliarVolumeAtivo.value = false
+}
+function onCustoHoraManualEdit () {
+  if (salarioMedio.value && salarioMedio.value > 0) auxiliarCustoHoraAtivo.value = false
+}
 
 const custoImplementacao = ref(25000)
 const custoLicencaAnual = ref(12000)
 const custoManutencaoMensal = ref(1000)
 const custoLLMMensal = ref(0)
+const reducaoTempo = ref(80)
+const reducaoErros = ref(90)
 
 const horasTimeMes = computed(() => {
   if (!execucoesDia.value || !diasUteis.value || !tmaMinutos.value) return 0
@@ -378,6 +422,7 @@ const horasPorPessoaDia = computed(() => {
   return horasTimeMes.value / qtdPessoas.value / diasUteis.value
 })
 
+// === CUSTO MANUAL (AS-IS) ===
 const horasManuaisMes = computed(() => {
   return (volumeM.value * tmaMinutos.value) / 60
 })
@@ -390,6 +435,16 @@ const custoManualAno = computed(() => {
   return custoManualMes.value * 12
 })
 
+// === CAPACIDADE DO TIME ===
+const capacidadeDisponivelMes = computed(() => {
+  return qtdPessoas.value * jornadaDiaria.value * diasUteis.value
+})
+
+const capacidadeExcedida = computed(() => {
+  return horasManuaisMes.value > capacidadeDisponivelMes.value && capacidadeDisponivelMes.value > 0
+})
+
+// === CUSTO RPA ===
 const custoRpaMes = computed(() => {
   return (custoLicencaAnual.value / 12) + custoManutencaoMensal.value + custoLLMMensal.value
 })
@@ -398,22 +453,42 @@ const custoRpaAno1 = computed(() => {
   return custoImplementacao.value + custoLicencaAnual.value + (custoManutencaoMensal.value * 12) + (custoLLMMensal.value * 12)
 })
 
-const economiaAno1 = computed(() => {
-  return custoManualAno.value - custoRpaAno1.value
-})
-
 const custoRpaAno2 = computed(() => {
   return custoLicencaAnual.value + (custoManutencaoMensal.value * 12) + (custoLLMMensal.value * 12)
 })
 
-const roiAcumulado2Anos = computed(() => {
-  const custoManual2Anos = custoManualAno.value * 2
-  const custoRpa2Anos = custoRpaAno1.value + custoRpaAno2.value
-  return custoManual2Anos - custoRpa2Anos
+// === ECONOMIA (com fatores de redução) ===
+const economiaBrutaMes = computed(() => {
+  const savingTempo = horasManuaisMes.value * custoHora.value * (reducaoTempo.value / 100)
+  const savingErros = custoErrosMes.value * (reducaoErros.value / 100)
+  return savingTempo + savingErros
 })
 
+const economiaLiquidaMes = computed(() => {
+  return economiaBrutaMes.value - custoRpaMes.value
+})
+
+const economiaAno1 = computed(() => {
+  return (economiaBrutaMes.value * 12) - custoRpaAno1.value
+})
+
+const economiaAno2 = computed(() => {
+  return (economiaBrutaMes.value * 12) - custoRpaAno2.value
+})
+
+const economiaAcumulada2Anos = computed(() => {
+  return economiaAno1.value + economiaAno2.value
+})
+
+const roiPercentual2Anos = computed(() => {
+  const investimentoTotal = custoRpaAno1.value + custoRpaAno2.value
+  if (investimentoTotal <= 0) return 0
+  return (economiaAcumulada2Anos.value / investimentoTotal) * 100
+})
+
+// === HORAS LIBERADAS (com fator de redução) ===
 const horasLiberadasMes = computed(() => {
-  return horasManuaisMes.value
+  return horasManuaisMes.value * (reducaoTempo.value / 100)
 })
 
 const horasLiberadasAno = computed(() => {
@@ -425,10 +500,10 @@ const horasLiberadasPorPessoa = computed(() => {
   return horasLiberadasMes.value / qtdPessoas.value
 })
 
+// === PAYBACK ===
 const paybackMeses = computed(() => {
-  const savingsPerMonth = custoManualMes.value - custoRpaMes.value
-  if (savingsPerMonth <= 0) return 0
-  return custoImplementacao.value / savingsPerMonth
+  if (economiaLiquidaMes.value <= 0) return null
+  return custoImplementacao.value / economiaLiquidaMes.value
 })
 
 const chartOptions = computed(() => ({
@@ -504,18 +579,23 @@ function getExportData () {
       { label: 'Investimento de Implantação (Capex)', value: formatCurrency(custoImplementacao.value) },
       { label: 'Licenciamento Anual', value: formatCurrency(custoLicencaAnual.value) },
       { label: 'Manutenção / Nuvem Mensal', value: formatCurrency(custoManutencaoMensal.value) },
-      { label: 'Custo IA / Tokens LLM Mensal', value: formatCurrency(custoLLMMensal.value) }
+      { label: 'Custo IA / Tokens LLM Mensal', value: formatCurrency(custoLLMMensal.value) },
+      { label: 'Redução de Tempo Prevista', value: `${reducaoTempo.value}%` },
+      { label: 'Redução de Erros Prevista', value: `${reducaoErros.value}%` }
     ],
     results: [
       { label: 'Horas Manuais por Mês', value: `${horasManuaisMes.value.toFixed(0)} horas (entre ${qtdPessoas.value} pessoas)` },
-      { label: 'Custo Manual Mensal', value: formatCurrency(custoManualMes.value) },
-      { label: 'Custo Manual Anual', value: formatCurrency(custoManualAno.value) },
+      { label: 'Custo Manual Mensal (AS-IS)', value: formatCurrency(custoManualMes.value) },
+      { label: 'Custo Manual Anual (AS-IS)', value: formatCurrency(custoManualAno.value) },
+      { label: 'Economia Bruta Mensal (com reduções)', value: formatCurrency(economiaBrutaMes.value) },
       { label: 'Custo RPA Mensal (OPEX recorrente)', value: formatCurrency(custoRpaMes.value) },
+      { label: 'Economia Líquida Mensal', value: formatCurrency(economiaLiquidaMes.value) },
       { label: 'Custo RPA Total Ano 1', value: formatCurrency(custoRpaAno1.value) },
-      { label: 'Tempo Estimado de Payback', value: paybackMeses.value > 0 ? `${paybackMeses.value.toFixed(1)} meses` : 'Não se paga com os parâmetros atuais' },
-      { label: 'Economia Anual (Ano 1)', value: formatCurrency(economiaAno1.value) },
       { label: 'Custo RPA Ano 2 (somente recorrente)', value: formatCurrency(custoRpaAno2.value) },
-      { label: 'ROI Acumulado (2 Anos)', value: formatCurrency(roiAcumulado2Anos.value) },
+      { label: 'Tempo Estimado de Payback', value: paybackMeses.value !== null ? `${paybackMeses.value.toFixed(1)} meses` : 'Inviável — OPEX supera economia' },
+      { label: 'Economia Anual (Ano 1)', value: formatCurrency(economiaAno1.value) },
+      { label: 'Economia Acumulada (2 Anos)', value: formatCurrency(economiaAcumulada2Anos.value) },
+      { label: 'ROI 2 Anos (%)', value: `${roiPercentual2Anos.value.toFixed(1)}%` },
       { label: 'Horas Liberadas do Time (Mensal)', value: `${horasLiberadasMes.value.toFixed(0)} horas (~${horasLiberadasPorPessoa.value.toFixed(0)}h por pessoa)` },
       { label: 'Horas Liberadas do Time (Anual)', value: `${horasLiberadasAno.value.toFixed(0)} horas` }
     ],
